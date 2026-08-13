@@ -1,0 +1,9 @@
+[contract]
+id      = "robonix/primitive/drone/hover"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/Hover.srv"
+description = "立即停止当前运动并在当前位置保持悬停。取消正在执行的航点任务或速度指令。"
+
+[mode]
+type = "rpc"

@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<!-- Minimal URDF skeleton for DJI Mavic 3 Enterprise.
+     Drone has no traditional joints — single rigid body.
+     Used for Soma registration only. -->
+<robot name="m3e">
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="0.4 0.4 0.15"/>
+      </geometry>
+      <material name="gray">
+        <color rgba="0.3 0.3 0.3 1.0"/>
+      </material>
+    </visual>
+  </link>
+</robot>

@@ -1,0 +1,60 @@
+# Soma 机器人描述 — DJI Mavic 3 Enterprise 无人机
+urdf:
+  path: ./model/m3e.urdf
+  root_link: base_link
+  model_name: m3e
+
+robot:
+  id: m3e
+  display_name: DJI Mavic 3 Enterprise
+  family: drone
+  root_part: body
+  footprint:
+    base_frame: base_link
+    points:
+      - [0.2, 0.2]
+      - [0.2, -0.2]
+      - [-0.2, -0.2]
+      - [-0.2, 0.2]
+  components:
+    - id: body
+      display_name: M3E 机身
+      type: body
+      urdf_link: base_link
+      exports:
+        - provider_id: drone_bridge
+          capabilities:
+            - { path: robonix/primitive/drone/takeoff, description: 起飞并悬停至指定高度 }
+            - { path: robonix/primitive/drone/land, description: 原地降落并锁定电机 }
+            - { path: robonix/primitive/drone/move_ee, description: 飞行至目标 GPS 位姿 }
+            - { path: robonix/primitive/drone/hover, description: 紧急悬停，取消当前运动 }
+            - { path: robonix/primitive/drone/rth, description: 智能返航至起飞点 }
+            - { path: robonix/primitive/drone/move_relative, description: 机体系相对移动（前后/左右/上下/偏航） }
+            - { path: robonix/primitive/drone/gimbal_rotate, description: 设置云台绝对姿态（俯仰/横滚/偏航） }
+            - { path: robonix/primitive/drone/camera_capture, description: 触发相机单张拍照 }
+            - { path: robonix/primitive/drone/camera_zoom, description: 设置相机混合变焦倍率 }
+            - { path: robonix/primitive/drone/state_position, description: 获取当前 GPS 位姿 }
+            - { path: robonix/primitive/drone/state_battery, description: 获取电池电量 }
+
+description:
+  summary: >
+    DJI Mavic 3 Enterprise (M3E) — 通过 MSDK v5 桥接控制。
+    运行在 DJI RC Pro (Android) 上，通过 HTTP API 与 RoboNIX 通信。
+  can_do:
+    - 起飞 / 降落 / 悬停
+    - GPS 航点巡航
+    - 手动操控（虚拟摇杆）
+    - 机体系相对移动（前后/左右/上下/偏航）
+    - 云台姿态控制（俯仰/横滚/偏航）
+    - 相机拍照 / 变焦
+    - 实时遥测（高度、GPS、电池、飞行模式）
+    - MJPEG 视频流 (640px, ~12fps)
+    - 自动返航
+  cannot_do:
+    - 避障绕过（M3E 有 APAS 但需遥控器干预）
+    - 超视距飞行（受法规限制）
+    - 高精度着陆（需 RTK 模块）
+  notes:
+    - RC Pro 必须与 PC 在同一 WiFi 网络下
+    - 首次使用需在 RC Pro 上手动打开 Drone_test APK
+    - 飞行前务必确认 GPS 锁定和返航点已刷新

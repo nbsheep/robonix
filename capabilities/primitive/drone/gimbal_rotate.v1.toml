@@ -1,0 +1,9 @@
+[contract]
+id      = "robonix/primitive/drone/gimbal_rotate"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/GimbalRotate.srv"
+description = "设置云台姿态（绝对角度，度）：pitch 俯仰、roll 横滚、yaw 偏航。用于对准目标（如窗户）进行观察。"
+
+[mode]
+type = "rpc"

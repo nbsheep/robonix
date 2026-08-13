@@ -1,0 +1,9 @@
+[contract]
+id      = "robonix/primitive/drone/land"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/Land.srv"
+description = "控制无人机原地降落并锁定电机。"
+
+[mode]
+type = "rpc"

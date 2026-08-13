@@ -1,0 +1,9 @@
+[contract]
+id      = "robonix/primitive/drone/camera_capture"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/CameraCapture.srv"
+description = "触发相机拍照（单张），供视觉模型判断目标状态（如窗户是否关闭）。"
+
+[mode]
+type = "rpc"

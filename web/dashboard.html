@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🚁 M3E 无人机控制台 — RoboNIX</title>
+<style>
+:root {
+  --bg: #0a0e17;
+  --panel: #131a2b;
+  --card: #1a2340;
+  --accent: #00c8ff;
+  --accent2: #00e676;
+  --warn: #ff9100;
+  --danger: #ff1744;
+  --text: #c8d6e5;
+  --text2: #6b7d99;
+  --border: #1e2d4a;
+  --radius: 14px;
+  --radius-sm: 8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, sans-serif;
+  background: var(--bg); color: var(--text);
+  min-height: 100vh; overflow-x: hidden;
+}
+
+/* ── Header ── */
+.header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 14px 24px; background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top:0; z-index:100;
+}
+.header h1{ font-size:20px; font-weight:700; color:#fff; }
+.header h1 span{ color:var(--accent); }
+.connection-dot{ display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; }
+.connection-dot.online{ background:var(--accent2); box-shadow:0 0 8px var(--accent2); }
+.connection-dot.offline{ background:var(--danger); }
+.connection-status{ font-size:12px; color:var(--text2); }
+
+/* ── Layout ── */
+.layout{ display:grid; grid-template-columns:1fr 380px; gap:16px; padding:16px 24px; max-width:1500px; margin:0 auto; }
+
+/* ── Video Panel ── */
+.video-panel{
+  background: #000; border-radius: var(--radius);
+  overflow:hidden; position:relative;
+  aspect-ratio:16/9; min-height:360px;
+  border: 1px solid var(--border);
+}
+.video-panel img{ width:100%; height:100%; object-fit:contain; display:block; }
+.video-panel .no-video{
+  position:absolute; inset:0; display:flex;
+  flex-direction:column; align-items:center; justify-content:center;
+  color: var(--text2); font-size:14px;
+}
+.video-panel .no-video .icon{ font-size:56px; margin-bottom:12px; opacity:.5; }
+.video-overlay{
+  position:absolute; top:12px; left:12px;
+  background: rgba(0,0,0,.7); color: var(--accent);
+  padding:4px 10px; border-radius: 20px; font-size:11px;
+  font-weight:600; letter-spacing:.5px;
+}
+.video-overlay.live::before{
+  content:''; display:inline-block; width:7px; height:7px;
+  background: var(--danger); border-radius:50%; margin-right:6px;
+  animation: blink 1s infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ── Telemetry Bar ── */
+.telemetry-bar{
+  display:grid; grid-template-columns:repeat(5,1fr); gap:10px;
+  margin-top:16px;
+}
+.tel-card{
+  background:var(--card); border-radius:var(--radius-sm);
+  padding:14px; text-align:center; border:1px solid var(--border);
+}
+.tel-card .t-label{ font-size:10px; color:var(--text2); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px; }
+.tel-card .t-value{ font-size:22px; font-weight:700; color:#fff; }
+.tel-card .t-value.accent{ color:var(--accent); }
+.tel-card .t-unit{ font-size:11px; color:var(--text2); margin-left:2px; }
+
+/* ── Right Panel ── */
+.right-panel{ display:flex; flex-direction:column; gap:12px; }
+
+/* ── Section Card ── */
+.section{
+  background:var(--panel); border-radius:var(--radius);
+  padding:16px; border:1px solid var(--border);
+}
+.section h3{
+  font-size:13px; color:var(--text2); text-transform:uppercase;
+  letter-spacing:1.5px; margin-bottom:12px; font-weight:600;
+}
+
+/* ── Status Grid ── */
+.status-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.status-item{ background:var(--card); border-radius:var(--radius-sm); padding:10px; text-align:center; }
+.status-item .s-label{ font-size:10px; color:var(--text2); }
+.status-item .s-value{ font-size:15px; font-weight:700; margin-top:2px; }
+.status-item .s-value.good{ color:var(--accent2); }
+.status-item .s-value.warn{ color:var(--warn); }
+.status-item .s-value.bad{ color:var(--danger); }
+
+/* ── Mode Tabs ── */
+.mode-tabs{ display:flex; gap:4px; margin-bottom:10px; }
+.mode-tab{
+  flex:1; padding:8px; border:none; border-radius:var(--radius-sm);
+  font-size:11px; font-weight:700; cursor:pointer; transition:.2s;
+  background:var(--card); color:var(--text2);
+}
+.mode-tab:hover{ background:#243050; }
+.mode-tab.active{ background:var(--accent); color:#000; }
+
+/* ── Buttons ── */
+.btn-row{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+button{
+  padding:9px 14px; border:none; border-radius:var(--radius-sm);
+  font-size:12px; font-weight:600; cursor:pointer; transition:.15s;
+  color:#fff; letter-spacing:.3px;
+}
+button:hover{ filter:brightness(1.15); transform:translateY(-1px); }
+button:active{ transform:scale(.96); }
+button:disabled{ opacity:.3; cursor:not-allowed; filter:none; transform:none; }
+
+.btn-takeoff{ background:#0d7c3d; }        .btn-land{ background:var(--danger); }
+.btn-hover{ background:var(--warn); color:#000; }
+.btn-action{ background:#1a5faa; }          .btn-warn{ background:#b04a0e; }
+.btn-sm{ background:var(--card); font-size:10px; padding:6px 10px; }
+
+/* ── Manual Controls ── */
+.manual-row{ display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+.manual-row label{ font-size:11px; color:var(--text2); min-width:40px; text-align:right; }
+.manual-row input{
+  width:60px; padding:7px; background:var(--card); border:1px solid var(--border);
+  border-radius:var(--radius-sm); color:var(--accent); font-size:13px;
+  font-weight:700; text-align:center; outline:none;
+}
+.manual-row input:focus{ border-color:var(--accent); }
+.manual-row .unit{ font-size:10px; color:var(--text2); }
+
+/* ── Waypoint ── */
+.wp-input-row{ display:grid; grid-template-columns:1fr 1fr .6fr .35fr; gap:4px; margin-bottom:8px; }
+.wp-input-row input{
+  background:var(--card); border:1px solid var(--border); border-radius:var(--radius-sm);
+  color:var(--accent); font-size:11px; padding:7px; text-align:center; outline:none;
+}
+.wp-input-row input::placeholder{ color:var(--text2); }
+.wp-list{
+  background:#080c16; border-radius:var(--radius-sm); padding:8px;
+  min-height:40px; max-height:100px; overflow-y:auto;
+  font-size:10px; color:var(--text2); font-family:monospace; margin-bottom:6px;
+}
+
+/* ── Log ── */
+.log-area{
+  background:#080c16; border-radius:var(--radius-sm);
+  padding:10px; height:110px; overflow-y:auto;
+  font-size:10px; font-family:'Cascadia Code','Fira Code',monospace;
+  line-height:1.6; margin-top:8px;
+}
+.log-entry{ padding:2px 0; }
+.log-entry.info{ color:var(--accent2); }
+.log-entry.warn{ color:var(--warn); }
+.log-entry.err{ color:var(--danger); }
+.log-entry.debug{ color:var(--text2); }
+
+/* ── Footer ── */
+.footer{
+  text-align:center; padding:12px; font-size:10px; color:var(--text2);
+  border-top:1px solid var(--border); margin-top:16px;
+}
+
+/* ── Responsive ── */
+@media(max-width:900px){
+  .layout{ grid-template-columns:1fr; }
+  .telemetry-bar{ grid-template-columns:repeat(3,1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ Header ═══ -->
+<div class="header">
+  <h1>🚁 M3E <span>控制台</span></h1>
+  <div class="connection-status">
+    <span class="connection-dot offline" id="connDot"></span>
+    <span id="connText">未连接</span> &nbsp;|&nbsp;
+    <span id="connTime">--</span>
+  </div>
+</div>
+
+<!-- ═══ Main Layout ═══ -->
+<div class="layout">
+
+<!-- Left: Video + Telemetry -->
+<div>
+
+  <!-- Video -->
+  <div class="video-panel" id="videoPanel">
+    <div class="no-video" id="noVideo">
+      <div class="icon">📷</div>
+      <div>等待无人机连接...</div>
+    </div>
+    <img id="vidStream" src="" alt="MJPEG" style="display:none">
+    <div class="video-overlay live" id="videoOverlay" style="display:none">LIVE</div>
+  </div>
+
+  <!-- Telemetry -->
+  <div class="telemetry-bar">
+    <div class="tel-card">
+      <div class="t-label">高度</div>
+      <div class="t-value accent" id="tAlt">0.0<span class="t-unit">m</span></div>
+    </div>
+    <div class="tel-card">
+      <div class="t-label">GPS 纬度</div>
+      <div class="t-value" id="tLat">--</div>
+    </div>
+    <div class="tel-card">
+      <div class="t-label">GPS 经度</div>
+      <div class="t-value" id="tLng">--</div>
+    </div>
+    <div class="tel-card">
+      <div class="t-label">电量</div>
+      <div class="t-value" id="tBat">--<span class="t-unit">%</span></div>
+    </div>
+    <div class="tel-card">
+      <div class="t-label">任务状态</div>
+      <div class="t-value" id="tMission" style="font-size:14px">就绪</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Right: Controls -->
+<div class="right-panel">
+
+  <!-- SDK / Drone Status -->
+  <div class="section">
+    <h3>📡 系统状态</h3>
+    <div class="status-grid">
+      <div class="status-item"><div class="s-label">SDK</div><div class="s-value" id="sdkStatus">--</div></div>
+      <div class="status-item"><div class="s-label">无人机</div><div class="s-value" id="droneStatus">--</div></div>
+      <div class="status-item"><div class="s-label">虚拟摇杆</div><div class="s-value" id="vsStatus">--</div></div>
+      <div class="status-item"><div class="s-label">飞行模式</div><div class="s-value" id="flightMode">--</div></div>
+    </div>
+  </div>
+
+  <!-- Mode Tabs -->
+  <div class="section">
+    <h3>🎯 操作模式</h3>
+    <div class="mode-tabs">
+      <button class="mode-tab active" id="tabStandby" onclick="switchMode('STANDBY')">🔴 待命</button>
+      <button class="mode-tab" id="tabCruise" onclick="switchMode('CRUISE')">🤖 自动巡航</button>
+      <button class="mode-tab" id="tabManual" onclick="switchMode('MANUAL')">🎮 手动操控</button>
+    </div>
+
+    <!-- Standby -->
+    <div class="mode-section" id="secStandby">
+      <div class="manual-row">
+        <label>爬升</label><input id="inpClimb" type="number" value="1.0" step="0.1" min="0.1"><span class="unit">m</span>
+        <label>平移</label><input id="inpMove" type="number" value="0.5" step="0.1"><span class="unit">m</span>
+        <label>旋转</label><input id="inpYaw" type="number" value="0" step="5"><span class="unit">°</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn-takeoff" id="btnStart" onclick="startMission()">🚀 开始任务</button>
+      </div>
+    </div>
+
+    <!-- Cruise -->
+    <div class="mode-section" id="secCruise" style="display:none">
+      <div class="wp-input-row">
+        <input id="inpWpLat" type="number" placeholder="纬度" step="0.000001">
+        <input id="inpWpLng" type="number" placeholder="经度" step="0.000001">
+        <input id="inpWpAlt" type="number" value="5.0" placeholder="高度" step="0.1">
+        <button class="btn-sm" onclick="addWaypoint()">+</button>
+      </div>
+      <div class="wp-list" id="wpList">尚未添加航点</div>
+      <div class="btn-row">
+        <button class="btn-sm" onclick="clearWaypoints()">🗑 清空</button>
+        <button class="btn-warn" id="btnStartCruise" onclick="startCruise()">🚀 开始巡航</button>
+      </div>
+    </div>
+
+    <!-- Manual -->
+    <div class="mode-section" id="secManual" style="display:none">
+      <div class="btn-row">
+        <button class="btn-takeoff" id="btnTakeoffHover" onclick="takeoffHover()">🛫 起飞悬停</button>
+      </div>
+      <div class="manual-row" style="margin-top:8px">
+        <label>升降 ±</label><input id="inpManClimb" type="number" value="1.0" step="0.1"><span class="unit">m</span>
+        <button class="btn-action" id="btnManClimb" onclick="manualCmd('climb')">执行</button>
+      </div>
+      <div class="manual-row">
+        <label>平移</label><input id="inpManMove" type="number" value="1.0" step="0.1"><span class="unit">m</span>
+        <button class="btn-action" id="btnManMoveL" onclick="manualCmd('move_left')">⬅左</button>
+        <button class="btn-action" id="btnManMoveR" onclick="manualCmd('move_right')">右➡</button>
+      </div>
+      <div class="manual-row">
+        <label>旋转 ±</label><input id="inpManRotate" type="number" value="90" step="5"><span class="unit">°</span>
+        <button class="btn-warn" id="btnManRotate" onclick="manualCmd('rotate')">执行</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Global Actions -->
+  <div class="section">
+    <h3>🛡️ 紧急操作</h3>
+    <div class="btn-row">
+      <button class="btn-hover" id="btnStop" onclick="sendCmd('stop')">⏸ 紧急悬停</button>
+      <button class="btn-land" id="btnGoHome" onclick="sendCmd('gohome')">🛬 返航降落</button>
+      <button class="btn-sm" id="btnReset" onclick="sendCmd('reset')">🔄 重置</button>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="section">
+    <h3>📋 日志</h3>
+    <div class="log-area" id="logArea">
+      <div class="log-entry info">系统就绪 — 等待连接...</div>
+    </div>
+  </div>
+
+</div><!-- .right-panel -->
+</div><!-- .layout -->
+
+<div class="footer">
+  M3E Drone Console v4.0 &nbsp;|&nbsp; RoboNIX 集成 &nbsp;|&nbsp;
+  目标: <span id="targetUrl">--</span>
+</div>
+
+<!-- ═══ Script ═══ -->
+<script>
+// ── Config ──
+const TARGET = (() => {
+  const params = new URLSearchParams(window.location.search);
+  const host = params.get('host');
+  const port = params.get('port') || '8080';
+
+  // 视频 URL：优先直连 RC Pro（img 无 CORS），其次走代理
+  const directHost = host || window.__RC_HOST__ || '';
+  const videoUrl = directHost ? `http://${directHost}:${port}/api/video` : '/api/video';
+
+  // API URL：直连模式用绝对路径，代理模式用相对路径
+  if (host) {
+    document.getElementById('targetUrl').textContent = `${host}:${port}`;
+    return { base: `http://${host}:${port}`, videoUrl: videoUrl };
+  }
+  document.getElementById('targetUrl').textContent = `代理 → ${directHost || '?'}`;
+  return { base: '', videoUrl: videoUrl };
+})();
+
+// ── State ──
+var currentMode = 'STANDBY';
+var lastMissionState = '';
+var pollFail = 0;
+var maxPollFail = 10;
+
+// ── Log ──
+function addLog(msg, type) {
+  type = type || 'info';
+  var el = document.getElementById('logArea');
+  var entry = document.createElement('div');
+  entry.className = 'log-entry ' + type;
+  var now = new Date();
+  entry.textContent = '[' + now.toTimeString().slice(0,8) + '] ' + msg;
+  el.insertBefore(entry, el.firstChild);
+  while (el.children.length > 100) el.removeChild(el.lastChild);
+}
+
+// ── Connection Indicator ──
+function setConnected(ok) {
+  var dot = document.getElementById('connDot');
+  var txt = document.getElementById('connText');
+  if (ok) {
+    dot.className = 'connection-dot online';
+    txt.textContent = '已连接';
+    pollFail = 0;
+  } else {
+    dot.className = 'connection-dot offline';
+    txt.textContent = '未连接';
+  }
+  document.getElementById('connTime').textContent = new Date().toTimeString().slice(0,8);
+}
+
+// ── API helpers ──
+function apiGet(path) {
+  return fetch(TARGET.base + path)
+    .then(function(r) { if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
+}
+
+function apiPost(path, data) {
+  return fetch(TARGET.base + path, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data || {})
+  }).then(function(r) { return r.json(); });
+}
+
+// ── UI Update ──
+function updateUI(d) {
+  if (d.error) { setConnected(false); return; }
+  setConnected(true);
+  pollFail = 0;
+
+  // SDK / Drone status
+  var sdkEl = document.getElementById('sdkStatus');
+  sdkEl.textContent = d.sdkRegistered ? '✓ 已激活' : (d.sdkStatusText || '等待');
+  sdkEl.className = 's-value ' + (d.sdkRegistered ? 'good' : 'warn');
+
+  var droneEl = document.getElementById('droneStatus');
+  droneEl.textContent = d.productConnected ? '✓ 已连接' : '等待中';
+  droneEl.className = 's-value ' + (d.productConnected ? 'good' : 'warn');
+
+  document.getElementById('vsStatus').textContent = d.vsEnabled ? '✓ 已启用' : '未启用';
+  document.getElementById('vsStatus').className = 's-value ' + (d.vsEnabled ? 'good' : '');
+
+  document.getElementById('flightMode').textContent = d.operationMode || '--';
+
+  // Video
+  var vidPanel = document.getElementById('videoPanel');
+  var vidImg = document.getElementById('vidStream');
+  var noVid = document.getElementById('noVideo');
+  var vidOverlay = document.getElementById('videoOverlay');
+
+  if (d.productConnected && !vidImg.src) {
+    vidImg.src = TARGET.videoUrl;
+    vidImg.style.display = 'block';
+    noVid.style.display = 'none';
+    vidOverlay.style.display = 'block';
+    addLog('📷 视频流已连接', 'info');
+  } else if (!d.productConnected && vidImg.src) {
+    vidImg.src = '';
+    vidImg.style.display = 'none';
+    noVid.style.display = 'flex';
+    vidOverlay.style.display = 'none';
+  }
+
+  // Telemetry
+  document.getElementById('tAlt').innerHTML = parseFloat(d.altitude || 0).toFixed(1) + '<span class="t-unit">m</span>';
+
+  // GPS from mission params or waypoint data
+  var lat = '--', lng = '--';
+  if (d.climbHeight !== undefined && d.moveDistance !== undefined) {
+    // No direct GPS in status yet — will be added
+  }
+  if (d.waypoints && d.waypoints.length > 0) {
+    var last = d.waypoints[d.waypoints.length-1];
+    lat = last.latitude.toFixed(5);
+    lng = last.longitude.toFixed(5);
+  }
+  document.getElementById('tLat').textContent = lat;
+  document.getElementById('tLng').textContent = lng;
+
+  document.getElementById('tBat').innerHTML = (d.batteryPercent || '--') + '<span class="t-unit">%</span>';
+
+  // Mission state
+  var sm = {
+    'IDLE':'就绪','TAKEOFF':'正在起飞','CLIMBING':'正在上升','YAW_ROTATE':'正在旋转',
+    'MOVE_LEFT':'向左平移','MOVE_RIGHT':'向右平移','HOVERING':'悬停中',
+    'LANDING':'正在降落','COMPLETED':'✓ 完成','ERROR':'✗ 错误',
+    'CRUISE_TAKEOFF':'巡航起飞','WAYPOINT_YAW':'对准航点','WAYPOINT_FLY':'飞向航点'
+  };
+  var ms = sm[d.missionState] || d.missionState || '--';
+  document.getElementById('tMission').textContent = ms;
+
+  // Color-code mission state
+  var msColor = '#fff';
+  if (d.missionState === 'COMPLETED') msColor = 'var(--accent2)';
+  else if (d.missionState === 'ERROR') msColor = 'var(--danger)';
+  else if (d.missionState === 'IDLE' || d.missionState === 'HOVERING') msColor = 'var(--accent)';
+  else msColor = 'var(--warn)';
+  document.getElementById('tMission').style.color = msColor;
+
+  // Mode tabs
+  if (d.operationMode && d.operationMode !== currentMode) {
+    currentMode = d.operationMode;
+    updateModeTabs();
+  }
+
+  // Mode sections
+  var isIdle = d.missionState === 'IDLE';
+  var isHover = d.missionState === 'HOVERING';
+  var isRunning = !isIdle && d.missionState !== 'COMPLETED' && d.missionState !== 'ERROR' && !isHover;
+  var ready = d.sdkRegistered && d.productConnected && isIdle;
+
+  document.getElementById('secStandby').style.display = (currentMode === 'STANDBY' && isIdle) ? '' : 'none';
+  document.getElementById('secCruise').style.display = (currentMode === 'AUTO_CRUISE' && isIdle) ? '' : 'none';
+  document.getElementById('secManual').style.display = (currentMode === 'MANUAL') ? '' : 'none';
+
+  // Buttons
+  document.getElementById('btnStart').disabled = !(ready && currentMode === 'STANDBY');
+  var hasWps = (d.waypointCount || 0) > 0;
+  document.getElementById('btnStartCruise').disabled = !(ready && currentMode === 'AUTO_CRUISE' && hasWps);
+  var th = document.getElementById('btnTakeoffHover');
+  if (th) { th.disabled = !(ready && isIdle && currentMode === 'MANUAL'); th.style.display = isIdle ? '' : 'none'; }
+
+  // Waypoint list
+  var wpList = document.getElementById('wpList');
+  if (d.waypoints && d.waypoints.length > 0) {
+    var lines = d.waypoints.map(function(w) { return w.label; }).join('\n');
+    if (d.cruiseWaypointIndex >= 0 && d.cruiseWaypointIndex < d.waypoints.length) {
+      lines += '\n\n▶ ' + (d.cruiseWaypointIndex+1) + '/' + d.waypoints.length;
+    }
+    wpList.textContent = lines;
+  } else {
+    wpList.textContent = '尚未添加航点';
+  }
+
+  // Log state changes
+  if (d.missionState !== lastMissionState && d.statusMessage) {
+    var logType = d.missionState === 'ERROR' ? 'err' : (d.missionState === 'COMPLETED' ? 'info' : 'warn');
+    addLog(d.statusMessage, logType);
+    lastMissionState = d.missionState;
+  }
+}
+
+// ── Mode ──
+function updateModeTabs() {
+  document.querySelectorAll('.mode-tab').forEach(function(t){ t.classList.remove('active'); });
+  if (currentMode === 'STANDBY') document.getElementById('tabStandby').classList.add('active');
+  else if (currentMode === 'AUTO_CRUISE') document.getElementById('tabCruise').classList.add('active');
+  else if (currentMode === 'MANUAL') document.getElementById('tabManual').classList.add('active');
+}
+
+function switchMode(m) {
+  apiPost('/api/mode', {mode: m}).then(function(d) {
+    if (d.success !== false) {
+      currentMode = m;
+      updateModeTabs();
+      addLog('模式 → ' + m, 'info');
+    } else {
+      addLog('切换失败: ' + (d.message||''), 'err');
+    }
+  }).catch(function(e) { addLog('切换异常: ' + e.message, 'err'); });
+}
+
+// ── Commands ──
+function startMission() {
+  var c = parseFloat(document.getElementById('inpClimb').value) || 1.0;
+  var m = parseFloat(document.getElementById('inpMove').value) || 0.5;
+  var y = parseFloat(document.getElementById('inpYaw').value) || 0;
+  addLog('任务启动: 爬'+c+'m 移'+m+'m 转'+y+'°', 'warn');
+  apiPost('/api/start', {climbHeight:c, moveDistance:m, yawAngle:y})
+    .then(function(d){ addLog(d.message || JSON.stringify(d), d.success!==false?'info':'err'); })
+    .catch(function(e){ addLog(e.message, 'err'); });
+}
+
+function addWaypoint() {
+  var lat = parseFloat(document.getElementById('inpWpLat').value);
+  var lng = parseFloat(document.getElementById('inpWpLng').value);
+  var alt = parseFloat(document.getElementById('inpWpAlt').value) || 5.0;
+  if (isNaN(lat) || isNaN(lng)) { addLog('请输入有效的经纬度', 'err'); return; }
+  apiPost('/api/add_waypoint', {latitude:lat, longitude:lng, altitude:alt})
+    .then(function(d){
+      addLog('航点+ (总计: ' + (d.total||'?') + ')', 'info');
+      document.getElementById('inpWpLat').value = '';
+      document.getElementById('inpWpLng').value = '';
+    }).catch(function(e){ addLog(e.message, 'err'); });
+}
+
+function clearWaypoints() {
+  apiPost('/api/clear_waypoints').then(function(){ addLog('航点已清空', 'info'); }).catch(function(e){ addLog(e.message, 'err'); });
+}
+
+function startCruise() {
+  apiPost('/api/start_cruise').then(function(d){ addLog(d.message||JSON.stringify(d), 'warn'); }).catch(function(e){ addLog(e.message, 'err'); });
+}
+
+function takeoffHover() {
+  apiPost('/api/takeoff_hover').then(function(d){ addLog(d.message||JSON.stringify(d), 'warn'); }).catch(function(e){ addLog(e.message, 'err'); });
+}
+
+function manualCmd(action) {
+  var v;
+  if (action === 'climb') v = parseFloat(document.getElementById('inpManClimb').value) || 1.0;
+  else if (action === 'move_left' || action === 'move_right') v = parseFloat(document.getElementById('inpManMove').value) || 1.0;
+  else v = parseFloat(document.getElementById('inpManRotate').value) || 90;
+  addLog('手动: ' + action + ' ' + v, 'warn');
+  apiPost('/api/manual', {action:action, value:v})
+    .then(function(d){ addLog(d.message||JSON.stringify(d)); }).catch(function(e){ addLog(e.message, 'err'); });
+}
+
+function sendCmd(cmd) {
+  if (cmd === 'stop') {
+    addLog('⚠ 紧急停止！', 'warn');
+  } else if (cmd === 'gohome') {
+    addLog('🛬 返航降落...', 'warn');
+  }
+  apiPost('/api/' + cmd).then(function(d){ addLog(d.message||JSON.stringify(d)); }).catch(function(e){ addLog(e.message, 'err'); });
+}
+
+// ── Polling ──
+function poll() {
+  apiGet('/api/status')
+    .then(updateUI)
+    .catch(function(e) {
+      pollFail++;
+      if (pollFail === 1) addLog('连接失败: ' + e.message, 'err');
+      if (pollFail >= maxPollFail) {
+        setConnected(false);
+        if (pollFail === maxPollFail) addLog('⚠ 连续 ' + maxPollFail + ' 次连接失败，请检查 RC Pro', 'err');
+      }
+    });
+}
+
+// ── Init ──
+document.getElementById('targetUrl').textContent = TARGET.host + ':' + TARGET.port;
+addLog('控制台启动 — 目标: ' + TARGET.base, 'info');
+addLog('可通过 URL 参数指定目标: ?host=<RC_Pro_IP>&port=8080', 'debug');
+
+setInterval(poll, 1000);
+poll();
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+[contract]
+id      = "robonix/primitive/drone/rth"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/Rth.srv"
+description = "触发智能返航，无人机自动返回起飞点并降落。无人机最关键的安全原语。"
+
+[mode]
+type = "rpc"

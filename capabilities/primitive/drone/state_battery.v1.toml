@@ -1,0 +1,9 @@
+[contract]
+id      = "robonix/primitive/drone/state_battery"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/GetBattery.srv"
+description = "获取无人机电池剩余电量百分比。"
+
+[mode]
+type = "rpc"

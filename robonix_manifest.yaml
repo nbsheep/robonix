@@ -1,0 +1,31 @@
+# RoboNIX 部署清单 — M3E 无人机项目
+# 将此文件放到 ~/my-robot/robonix_manifest.yaml
+# 或在 drone_bridge 目录下直接 rbnx boot
+
+name: m3e-drone
+
+env:
+  LOG: "DEBUG"
+
+system:
+  atlas: {}
+  executor: {}
+  liaison: {}
+  # pilot 暂不启用（无 VLM 需求时可注释掉）
+
+primitive:
+  # 原有的 Lite3 描述原语（PC 验证用，真机部署时可删除）
+  # - name: lite3_description
+  #   path: ./primitives/lite3_description
+  #   config:
+  #     urdf_path: deep_robotics_model/Lite3/Lite3_urdf/urdf/Lite3.urdf
+
+  # 无人机桥接原语
+  - name: drone_bridge
+    path: ./primitives/drone_bridge
+    config:
+      rc_pro_ip: "10.225.57.15"
+      rc_pro_port: 8080
+
+service: []
+skill: []

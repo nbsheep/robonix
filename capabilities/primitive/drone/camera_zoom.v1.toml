@@ -1,0 +1,9 @@
+[contract]
+id      = "robonix/primitive/drone/camera_zoom"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/CameraZoom.srv"
+description = "设置相机混合变焦倍率（factor，如 1.0~28.0），用于拉近观察远处目标。"
+
+[mode]
+type = "rpc"
