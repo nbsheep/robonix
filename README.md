@@ -74,7 +74,7 @@
 ## 文件清单
 
 ```
-Desktop/drone_bridge/          ← 本项目（部署到 WSL2）
+nbsheep/robonix/               ← 本仓库（monorepo：原语 + Android 端）
 ├── README.md                  ← 本文件
 ├── package_manifest.yaml      ← Robonix 包元信息
 ├── requirements.txt           ← Python 依赖
@@ -83,23 +83,41 @@ Desktop/drone_bridge/          ← 本项目（部署到 WSL2）
 ├── scripts/
 │   ├── build.sh               ← 构建脚本（rbnx codegen）
 │   └── start.sh               ← 启动脚本（rbnx boot 调用）
-├── drone_bridge/
+├── drone_bridge/              ← 本项目原语（部署到 WSL2）
 │   ├── __init__.py            ← 包初始化
+│   ├── driver.py              ← 原语能力处理器（@drone.grpc）
 │   └── main.py                ← 核心：HTTP 客户端 + 遥测 + Atlas 注册
-└── web/
-    └── dashboard.html         ← 增强版网页控制台（带实时视频）
-
-Desktop/Drone_test/            ← Android 项目（你的 APK 源码）
-├── ...                        ← AutomatedFlightActivity + WebServer + VideoFrameProvider
-└── sample/src/main/java/com/dji/wang/aircraft/
-    ├── AutomatedFlightActivity.kt   ← 主界面 + WebServer 启动
-    ├── models/
-    │   ├── WebServer.kt             ← HTTP API (:8080) + 内嵌仪表盘
-    │   ├── AutomatedFlightVM.kt     ← 飞行任务状态机
-    │   ├── VideoFrameProvider.kt    ← MJPEG 帧采集
-    │   └── WaypointData.kt          ← 航点/路线数据类
-    └── ...
+├── web/
+│   └── dashboard.html         ← 增强版网页控制台（带实时视频）
+└── android/Drone_test/        ← Android 项目（RC Pro 端 APK 源码）
+    └── sample/src/main/java/com/dji/wang/aircraft/
+        ├── AutomatedFlightActivity.kt   ← 主界面 + WebServer 启动
+        └── models/
+            ├── WebServer.kt             ← HTTP API (:8080) + 内嵌仪表盘
+            ├── AutomatedFlightVM.kt     ← 飞行任务状态机
+            ├── VideoFrameProvider.kt    ← MJPEG 帧采集
+            └── WaypointData.kt          ← 航点/路线数据类
 ```
+
+---
+
+## 构建 Android APK（协作者须知）
+
+> 本仓库是 **monorepo**，同时包含 RoboNIX 原语（`drone_bridge/`）和 RC Pro 端 App 源码（`android/Drone_test/`）。
+
+clone 之后要编译 `android/Drone_test/` 生成 APK，需要**自己补两样东西**（这两样都**刻意没有上传**到仓库）：
+
+1. **签名 keystore** —— 仓库里不含 `msdkkeystore.jks`（签名密钥属敏感文件，绝不能放公开仓库）。首次编译前二选一：
+   - 向维护者**私下索取**该 keystore，放到 `android/Drone_test/` 根目录；**或**
+   - 在 Android Studio 里自己生成一个新签名（Build → Generate Signed Bundle / APK → 新建 keystore）。
+2. **`local.properties`** —— 指向你本机 Android SDK 路径的文件，每台机器不同、已被 Git 忽略。用 Android Studio 打开 `android/Drone_test/` 会自动生成；或手动新建 `android/Drone_test/local.properties`，写入：
+   ```properties
+   sdk.dir=你的Android SDK路径
+   ```
+
+> 提醒：如果不配签名 keystore，代码能看、能编译，但最后打 APK 的签名步骤会失败（报找不到 keystore）。
+
+完整构建步骤见 [`docs/从零开始_完整操作手册.md`](docs/从零开始_完整操作手册.md)。
 
 ---
 
@@ -532,6 +550,6 @@ curl http://<RC_Pro_IP>:8080/api/status
 
 ---
 
-> 最后更新：2026-08-11
+> 最后更新：2026-08-20
 >
 > 链路状态：RC Pro APK ✅ / HTTP API ✅ / MJPEG 视频 ✅ / drone_bridge ✅ / Web 仪表盘 ✅ / rbnx chat ✅
