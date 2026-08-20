@@ -98,10 +98,8 @@ pub async fn execute(
         let event = event.context("executor stream error")?;
         match event.event_kind {
             k if k == RtdlEventEnum::PlanStarted as u32 => {
-                if !json {
-                    if let Some(ps) = &event.plan_started {
-                        writeln!(out, "[plan] {} started", ps.plan_id)?;
-                    }
+                if !json && let Some(ps) = &event.plan_started {
+                    writeln!(out, "[plan] {} started", ps.plan_id)?;
                 }
             }
             k if k == RtdlEventEnum::NodeState as u32 => {
