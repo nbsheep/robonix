@@ -54,13 +54,10 @@ pub async fn execute(
     // Route the call through the Executor (the real runtime dispatch path),
     // not a direct provider connection, so the request flows through the same
     // Plan/RTDL machinery the Pilot uses.
-    let (channel_id, _exec_provider, channel) = atlas_client::connect_to_capability(
-        &mut atlas,
-        CONSUMER_ID,
-        EXECUTOR_CONTRACT,
-    )
-    .await
-    .context("locate executor via atlas")?;
+    let (channel_id, _exec_provider, channel) =
+        atlas_client::connect_to_capability(&mut atlas, CONSUMER_ID, EXECUTOR_CONTRACT)
+            .await
+            .context("locate executor via atlas")?;
     let mut client = RobonixSystemExecutorExecuteClient::new(channel);
 
     // Single-leaf plan: one `do` node whose call is the requested capability.
