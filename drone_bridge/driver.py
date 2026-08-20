@@ -9,6 +9,11 @@ Capability surface:
   robonix/primitive/drone/takeoff         rpc  起飞悬停
   robonix/primitive/drone/land            rpc  原地降落
   robonix/primitive/drone/move_ee         rpc  飞行至目标 GPS 位姿
+  robonix/primitive/drone/move_velocity   rpc  机体系 6DOF 速度向量控制
+  robonix/primitive/drone/rotate_velocity rpc  旋转（方向·角速度·持续时间）
+  robonix/primitive/drone/gimbal_velocity rpc  云台 3DOF 角速度向量控制
+  robonix/primitive/drone/gimbal_reset    rpc  云台回中
+  robonix/primitive/drone/camera_video    rpc  获取视频流 URL
   robonix/primitive/drone/hover           rpc  紧急悬停
   robonix/primitive/drone/rth             rpc  智能返航
   robonix/primitive/drone/state_position  rpc  当前位置查询
@@ -168,6 +173,34 @@ def move_relative(req: "drone_pb2.MoveRelative_Request") -> "drone_pb2.MoveRelat
     )
 
 
+@drone.grpc("robonix/primitive/drone/move_velocity")
+def move_velocity(req: "drone_pb2.MoveVelocity_Request") -> "drone_pb2.MoveVelocity_Response":
+    """机体系 6DOF 速度向量（twist）控制。"""
+    client = _get_client()
+    result = client.move_velocity(
+        vx=float(req.vx), vy=float(req.vy), vz=float(req.vz),
+        wx=float(req.wx), wy=float(req.wy), wz=float(req.wz),
+        duration=float(req.duration),
+    )
+    return drone_pb2.MoveVelocity_Response(
+        status=std_msgs_pb2.String(data=json.dumps(result, ensure_ascii=False)),
+    )
+
+
+@drone.grpc("robonix/primitive/drone/rotate_velocity")
+def rotate_velocity(req: "drone_pb2.RotateVelocity_Request") -> "drone_pb2.RotateVelocity_Response":
+    """旋转（方向·角速度·持续时间）：direction 1=左/-1=右，angular_velocity rad/s，duration 秒。"""
+    client = _get_client()
+    result = client.rotate_velocity(
+        direction=float(req.direction),
+        angular_velocity=float(req.angular_velocity),
+        duration=float(req.duration),
+    )
+    return drone_pb2.RotateVelocity_Response(
+        status=std_msgs_pb2.String(data=json.dumps(result, ensure_ascii=False)),
+    )
+
+
 @drone.grpc("robonix/primitive/drone/gimbal_rotate")
 def gimbal_rotate(req: "drone_pb2.GimbalRotate_Request") -> "drone_pb2.GimbalRotate_Response":
     """设置云台姿态（绝对角度，度）。"""
@@ -176,6 +209,48 @@ def gimbal_rotate(req: "drone_pb2.GimbalRotate_Request") -> "drone_pb2.GimbalRot
         pitch=float(req.pitch), roll=float(req.roll), yaw=float(req.yaw),
     )
     return drone_pb2.GimbalRotate_Response(
+        status=std_msgs_pb2.String(data=json.dumps(result, ensure_ascii=False)),
+    )
+
+
+@drone.grpc("robonix/primitive/drone/gimbal_velocity")
+def gimbal_velocity(req: "drone_pb2.GimbalVelocity_Request") -> "drone_pb2.GimbalVelocity_Response":
+    """云台 3DOF 角速度向量（°/s）控制：vpitch 俯仰 / vroll 横滚 / vyaw 偏航，duration 持续秒数。"""
+    client = _get_client()
+    result = client.gimbal_velocity(
+        vpitch=float(req.vpitch), vroll=float(req.vroll), vyaw=float(req.vyaw),
+        duration=float(req.duration),
+    )
+    return drone_pb2.GimbalVelocity_Response(
+        status=std_msgs_pb2.String(data=json.dumps(result, ensure_ascii=False)),
+    )
+
+
+@drone.grpc("robonix/primitive/drone/gimbal_reset")
+def gimbal_reset(req: "drone_pb2.GimbalReset_Request") -> "drone_pb2.GimbalReset_Response":
+    """云台回中：恢复到指定目标姿态（默认全 0 = 机头正前方水平）。"""
+    client = _get_client()
+    result = client.gimbal_reset(
+        pitch=float(req.pitch), roll=float(req.roll), yaw=float(req.yaw),
+    )
+    return drone_pb2.GimbalReset_Response(
+        status=std_msgs_pb2.String(data=json.dumps(result, ensure_ascii=False)),
+    )
+
+
+@drone.grpc("robonix/primitive/drone/camera_video")
+def camera_video(_req) -> "drone_pb2.CameraVideo_Response":
+    """获取视频流 URL（方案 A：返回 MJPEG 流地址，调用方自行拉流）。"""
+    client = _get_client()
+    result = {
+        "success": True,
+        "video_url": client.get_video_url(),
+        "format": "mjpeg",
+        "resolution": "640px",
+        "fps": 12,
+        "note": "用浏览器 / curl / ffmpeg 拉流即可",
+    }
+    return drone_pb2.CameraVideo_Response(
         status=std_msgs_pb2.String(data=json.dumps(result, ensure_ascii=False)),
     )
 

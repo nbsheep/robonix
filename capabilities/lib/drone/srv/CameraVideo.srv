@@ -1,0 +1,3 @@
+# 传视频流（方案 A）：返回 MJPEG 流 URL，调用方自行拉流
+---
+std_msgs/String status

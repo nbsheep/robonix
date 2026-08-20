@@ -316,13 +316,13 @@ RC_PRO_IP=192.168.x.x python3 drone_bridge/main.py
 ```
 drone> status          # 查看完整状态
 drone> takeoff         # 起飞悬停
-drone> climb 5         # 上升 5 米
-drone> move right 3    # 右移 3 米
-drone> move forward 2  # 前进 2 米（机体系）
-drone> move backward 1 # 后退 1 米（机体系）
+drone> vel 0 0 1.0 0 2 # 6DOF 速度向量：vx vy vz wz 持续秒数（上升 1m/s × 2s）
 drone> mv 1 -0.5 0 0   # 相对移动 dx dy dz dyaw
-drone> rotate 90       # 右转 90°
+drone> rv -1 0.5 2     # 旋转：右转 0.5rad/s × 2s（direction 1=左/-1=右）
 drone> gimbal -30      # 云台俯仰 -30°
+drone> gv 20 0 2       # 云台角速度：俯仰 20°/s × 2s（上抬 40°）
+drone> greset          # 云台回中（机头正前方）
+drone> video           # 获取 MJPEG 视频流 URL
 drone> photo           # 单张拍照
 drone> zoom 5          # 变焦 5x
 drone> land            # 降落

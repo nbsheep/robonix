@@ -24,8 +24,13 @@ capabilities:
   - name: robonix/primitive/drone/hover
   - name: robonix/primitive/drone/rth
   - name: robonix/primitive/drone/move_relative
+  - name: robonix/primitive/drone/move_velocity
+  - name: robonix/primitive/drone/rotate_velocity
   - name: robonix/primitive/drone/gimbal_rotate
+  - name: robonix/primitive/drone/gimbal_velocity
+  - name: robonix/primitive/drone/gimbal_reset
   - name: robonix/primitive/drone/camera_capture
+  - name: robonix/primitive/drone/camera_video
   - name: robonix/primitive/drone/camera_zoom
   - name: robonix/primitive/drone/state_position
   - name: robonix/primitive/drone/state_battery

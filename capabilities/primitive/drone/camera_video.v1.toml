@@ -1,0 +1,9 @@
+[contract]
+id      = "robonix/primitive/drone/camera_video"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/CameraVideo.srv"
+description = "获取相机实时视频流 URL（方案 A）：返回 status JSON（含 video_url/format/resolution/fps），调用方用浏览器/curl/ffmpeg 自行拉流。当前流为 MJPEG 640px ~12fps，由 RC Pro Drone_test APK 的 GET /api/video 提供。"
+
+[mode]
+type = "rpc"

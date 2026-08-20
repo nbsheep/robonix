@@ -1,0 +1,9 @@
+float64 vx        # 机体系前后线速度，前为正 (m/s)
+float64 vy        # 机体系左右线速度，右为正 (m/s)
+float64 vz        # 机体系上下线速度，上为正 (m/s)
+float64 wx        # 滚转角速度 (rad/s) — 四旋翼位姿模式下不可独立控制，忽略
+float64 wy        # 俯仰角速度 (rad/s) — 四旋翼位姿模式下不可独立控制，忽略
+float64 wz        # 偏航角速度，左转为正 (rad/s)
+float64 duration  # 持续秒数（0 = 瞬时/单次）
+---
+std_msgs/String status
