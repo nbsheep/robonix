@@ -1,0 +1,448 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#1a1a2e"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="16dp"
+        tools:context="com.dji.wang.aircraft.AutomatedFlightActivity">
+
+        <!-- SDK状态 -->
+        <TextView
+            android:id="@+id/text_sdk_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SDK: 初始化中..."
+            android:textColor="#888888"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/text_product_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:text=""
+            android:textColor="#888888"
+            android:textSize="11sp" />
+
+        <!-- 高度 -->
+        <TextView
+            android:id="@+id/text_altitude"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="-- 米"
+            android:textColor="#cccccc"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/text_mission_state"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="等待连接"
+            android:textColor="#ffcc00"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/text_status_message"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:gravity="center"
+            android:text=""
+            android:textColor="#888888"
+            android:textSize="11sp" />
+
+        <!-- ========== 模式选择标签栏 ========== -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_mode_standby"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:background="#00e5ff"
+                android:text="🔴 待命"
+                android:textColor="#1a1a2e"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btn_mode_cruise"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginStart="2dp"
+                android:layout_marginEnd="2dp"
+                android:background="#333344"
+                android:text="🤖 自动巡航"
+                android:textColor="#888"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btn_mode_manual"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:background="#333344"
+                android:text="🎮 手动操控"
+                android:textColor="#888"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- ========== 待命模式区 ========== -->
+        <LinearLayout
+            android:id="@+id/section_standby"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="visible">
+
+            <!-- 任务参数 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="2dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="爬升(m)" android:textColor="#aaa" android:textSize="10sp" />
+                    <EditText
+                        android:id="@+id/edit_climb_height"
+                        android:layout_width="60dp" android:layout_height="36dp"
+                        android:background="#16213e" android:gravity="center"
+                        android:inputType="numberDecimal" android:text="1.0"
+                        android:textColor="#00e5ff" android:textSize="15sp" android:textStyle="bold" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="2dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="平移(左−右+)" android:textColor="#aaa" android:textSize="10sp" />
+                    <EditText
+                        android:id="@+id/edit_move_distance"
+                        android:layout_width="60dp" android:layout_height="36dp"
+                        android:background="#16213e" android:gravity="center"
+                        android:inputType="numberDecimal|numberSigned" android:text="0.5"
+                        android:textColor="#00e5ff" android:textSize="15sp" android:textStyle="bold" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="2dp">
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:text="旋转(°)" android:textColor="#aaa" android:textSize="10sp" />
+                    <EditText
+                        android:id="@+id/edit_yaw_angle"
+                        android:layout_width="60dp" android:layout_height="36dp"
+                        android:background="#16213e" android:gravity="center"
+                        android:inputType="numberDecimal|numberSigned" android:text="0"
+                        android:textColor="#00e5ff" android:textSize="15sp" android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btn_start_mission"
+                android:layout_width="220dp" android:layout_height="48dp"
+                android:layout_marginTop="12dp"
+                android:background="#4CAF50" android:elevation="6dp"
+                android:enabled="false"
+                android:text="🚀 开始任务"
+                android:textColor="#ffffff" android:textSize="18sp" android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- ========== 自动巡航模式区 ========== -->
+        <LinearLayout
+            android:id="@+id/section_cruise"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:layout_marginTop="12dp">
+
+            <!-- 航点输入 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:background="#1e1e3a" android:padding="8dp">
+
+                <EditText
+                    android:id="@+id/edit_wp_lat"
+                    android:layout_width="0dp" android:layout_height="38dp"
+                    android:layout_weight="1" android:background="#16213e"
+                    android:gravity="center" android:hint="纬度 (N+/S-)"
+                    android:inputType="numberDecimal|numberSigned"
+                    android:textColor="#00e5ff" android:textColorHint="#555"
+                    android:textSize="13sp" android:padding="4dp" />
+
+                <EditText
+                    android:id="@+id/edit_wp_lng"
+                    android:layout_width="0dp" android:layout_height="38dp"
+                    android:layout_weight="1" android:background="#16213e"
+                    android:gravity="center" android:hint="经度 (E+/W-)"
+                    android:inputType="numberDecimal|numberSigned"
+                    android:textColor="#00e5ff" android:textColorHint="#555"
+                    android:textSize="13sp" android:padding="4dp"
+                    android:layout_marginStart="4dp" />
+
+                <EditText
+                    android:id="@+id/edit_wp_alt"
+                    android:layout_width="54dp" android:layout_height="38dp"
+                    android:background="#16213e" android:gravity="center"
+                    android:hint="高度" android:inputType="numberDecimal"
+                    android:text="5.0"
+                    android:textColor="#00e5ff" android:textColorHint="#555"
+                    android:textSize="13sp" android:padding="4dp"
+                    android:layout_marginStart="4dp" />
+
+                <Button
+                    android:id="@+id/btn_add_waypoint"
+                    android:layout_width="48dp" android:layout_height="38dp"
+                    android:layout_marginStart="4dp"
+                    android:background="#2196F3"
+                    android:text="+"
+                    android:textColor="#fff" android:textSize="20sp" android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- 航点列表 -->
+            <TextView
+                android:id="@+id/text_waypoint_list"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="#0d0d1a"
+                android:padding="8dp"
+                android:text="尚未添加航点"
+                android:textColor="#666"
+                android:textSize="12sp"
+                android:minHeight="60dp"
+                android:gravity="top" />
+
+            <!-- 路线管理按钮 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btn_save_route"
+                    android:layout_width="0dp" android:layout_height="36dp"
+                    android:layout_weight="1" android:layout_marginEnd="3dp"
+                    android:background="#444"
+                    android:text="💾 保存" android:textColor="#fff"
+                    android:textSize="12sp" android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btn_load_route"
+                    android:layout_width="0dp" android:layout_height="36dp"
+                    android:layout_weight="1" android:layout_marginStart="2dp" android:layout_marginEnd="2dp"
+                    android:background="#444"
+                    android:text="📂 加载" android:textColor="#fff"
+                    android:textSize="12sp" android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btn_clear_waypoints"
+                    android:layout_width="0dp" android:layout_height="36dp"
+                    android:layout_weight="1" android:layout_marginStart="3dp"
+                    android:background="#444"
+                    android:text="🗑 清空" android:textColor="#fff"
+                    android:textSize="12sp" android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- 开始巡航 -->
+            <Button
+                android:id="@+id/btn_start_cruise"
+                android:layout_width="220dp" android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:background="#FF6D00" android:elevation="6dp"
+                android:enabled="false"
+                android:text="🚀 开始巡航"
+                android:textColor="#ffffff" android:textSize="17sp" android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- ========== 手动操控模式区 ========== -->
+        <LinearLayout
+            android:id="@+id/section_manual"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:background="#1e1e3a"
+            android:padding="10dp">
+
+            <TextView
+                android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:text="🎮 手动操控 (需先进入悬停)"
+                android:textColor="#00e5ff" android:textSize="14sp" android:textStyle="bold"
+                android:layout_marginBottom="6dp" />
+
+            <!-- 起飞悬停按钮（仅IDLE时可用） -->
+            <Button
+                android:id="@+id/btn_takeoff_hover"
+                android:layout_width="200dp" android:layout_height="42dp"
+                android:layout_marginBottom="8dp"
+                android:background="#4CAF50" android:elevation="4dp"
+                android:enabled="false"
+                android:text="🛫 起飞并悬停"
+                android:textColor="#ffffff" android:textSize="15sp" android:textStyle="bold" />
+
+            <!-- 升降 -->
+            <LinearLayout
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:gravity="center" android:orientation="horizontal"
+                android:layout_marginBottom="6dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="升降 ±" android:textColor="#aaa" android:textSize="12sp" />
+                <EditText
+                    android:id="@+id/edit_manual_climb"
+                    android:layout_width="56dp" android:layout_height="34dp"
+                    android:background="#16213e" android:gravity="center"
+                    android:inputType="numberDecimal|numberSigned" android:text="1.0"
+                    android:textColor="#00e5ff" android:textSize="13sp" android:textStyle="bold" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="m" android:textColor="#888" android:textSize="10sp"
+                    android:layout_marginEnd="6dp" />
+                <Button
+                    android:id="@+id/btn_manual_climb"
+                    android:layout_width="64dp" android:layout_height="34dp"
+                    android:background="#2196F3"
+                    android:text="执行" android:textColor="#fff" android:textSize="11sp" android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- 平移 -->
+            <LinearLayout
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:gravity="center" android:orientation="horizontal"
+                android:layout_marginBottom="6dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="平移" android:textColor="#aaa" android:textSize="12sp" />
+                <EditText
+                    android:id="@+id/edit_manual_move"
+                    android:layout_width="56dp" android:layout_height="34dp"
+                    android:background="#16213e" android:gravity="center"
+                    android:inputType="numberDecimal" android:text="1.0"
+                    android:textColor="#00e5ff" android:textSize="13sp" android:textStyle="bold" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="m" android:textColor="#888" android:textSize="10sp"
+                    android:layout_marginEnd="4dp" />
+                <Button
+                    android:id="@+id/btn_manual_move_left"
+                    android:layout_width="50dp" android:layout_height="34dp"
+                    android:background="#9C27B0"
+                    android:text="⬅左" android:textColor="#fff" android:textSize="10sp" android:textStyle="bold" />
+                <Button
+                    android:id="@+id/btn_manual_move_right"
+                    android:layout_width="50dp" android:layout_height="34dp"
+                    android:layout_marginStart="2dp"
+                    android:background="#9C27B0"
+                    android:text="右➡" android:textColor="#fff" android:textSize="10sp" android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- 旋转 -->
+            <LinearLayout
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:gravity="center" android:orientation="horizontal">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="旋转 ±" android:textColor="#aaa" android:textSize="12sp" />
+                <EditText
+                    android:id="@+id/edit_manual_rotate"
+                    android:layout_width="56dp" android:layout_height="34dp"
+                    android:background="#16213e" android:gravity="center"
+                    android:inputType="numberDecimal|numberSigned" android:text="90"
+                    android:textColor="#00e5ff" android:textSize="13sp" android:textStyle="bold" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:text="°" android:textColor="#888" android:textSize="10sp"
+                    android:layout_marginEnd="6dp" />
+                <Button
+                    android:id="@+id/btn_manual_rotate"
+                    android:layout_width="64dp" android:layout_height="34dp"
+                    android:background="#FF5722"
+                    android:text="执行" android:textColor="#fff" android:textSize="11sp" android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ========== 底部全局按钮 ========== -->
+        <Button
+            android:id="@+id/btn_go_home"
+            android:layout_width="200dp" android:layout_height="44dp"
+            android:layout_marginTop="14dp"
+            android:background="#F44336" android:elevation="6dp"
+            android:enabled="false"
+            android:visibility="gone"
+            android:text="🛬 返航降落"
+            android:textColor="#ffffff" android:textSize="14sp" android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btn_reset_ui"
+            android:layout_width="200dp" android:layout_height="44dp"
+            android:layout_marginTop="8dp"
+            android:background="#555555" android:elevation="6dp"
+            android:enabled="false"
+            android:text="🔄 重置"
+            android:textColor="#ffffff" android:textSize="14sp" android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/text_vs_status"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text=""
+            android:textColor="#555555"
+            android:textSize="10sp" />
+
+        <TextView
+            android:id="@+id/text_web_url"
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text=""
+            android:visibility="gone"
+            android:textColor="#00e5ff"
+            android:textSize="10sp"
+            android:autoLink="web"
+            android:linksClickable="true" />
+
+    </LinearLayout>
+</ScrollView>
