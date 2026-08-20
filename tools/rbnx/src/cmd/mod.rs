@@ -11,6 +11,7 @@ use robonix_cli::Config;
 
 mod ask;
 mod build;
+mod call;
 mod chat;
 mod check_remotes;
 mod clean;
@@ -335,6 +336,25 @@ pub enum Commands {
         server: String,
     },
 
+    /// Invoke one capability directly (single-node Plan → Executor), bypassing
+    /// the Pilot/LLM. Deterministic and scriptable: `rbnx call <contract_id>`.
+    Call {
+        /// Capability contract id, e.g. robonix/primitive/drone/takeoff
+        contract_id: String,
+        /// Provider id to run the capability (default: first provider offering it)
+        #[arg(long)]
+        provider: Option<String>,
+        /// JSON args passed to the capability (default "{}")
+        #[arg(long, default_value = "{}")]
+        args: String,
+        /// robonix-atlas endpoint
+        #[arg(long, env = "ROBONIX_ATLAS", default_value = DEFAULT_ENDPOINT)]
+        server: String,
+        /// Emit one JSON object per leaf result on stdout
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Initialize a new robot deployment directory (creates robonix_manifest.yaml)
     Init {
         /// Robot deployment directory name
@@ -477,6 +497,13 @@ pub async fn execute(command: Commands, config: Config) -> Result<()> {
         Commands::Channels { server } => inspect::channels(&server).await,
         Commands::Inspect { server } => inspect::inspect(&server).await,
         Commands::Chat { server } => chat::execute(&server).await,
+        Commands::Call {
+            contract_id,
+            provider,
+            args,
+            server,
+            json,
+        } => call::execute(&server, &contract_id, provider.as_deref(), &args, json).await,
         Commands::Init { name, path } => init::execute(&name, path.as_deref()).await,
         Commands::PackageNew {
             name,
