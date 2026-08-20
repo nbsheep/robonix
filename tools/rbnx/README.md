@@ -38,6 +38,7 @@ cargo install --force --path tools/rbnx --bin rbnx
 | `rbnx codegen [--mcp]`    | Generate proto + MCP type stubs for a package          |
 | `rbnx chat`               | Interactive TUI chat with the pilot                    |
 | `rbnx ask "..."`          | Single-turn task submission                            |
+| `rbnx call CONTRACT`      | Invoke one capability directly (single-node Plan → Executor, no LLM) |
 | `rbnx path KEY`           | Resolve a registered source path (root / capabilities / interfaces-lib / runtime-proto / robonix-api) |
 | `rbnx setup [PATH]`       | Register a robonix source tree at `PATH`               |
 | `rbnx clean`              | Remove per-package build artefacts                     |
