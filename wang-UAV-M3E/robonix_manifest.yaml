@@ -1,0 +1,6 @@
+primitive:
+  - name: mavic_control
+    path: ./primitives/mavic_http_control
+    config:
+      host: 172.20.10.2
+      port: 8080

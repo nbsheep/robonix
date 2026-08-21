@@ -1,0 +1,28 @@
+manifestVersion: 1
+
+package:
+  name: com.robonix.driver.mavic_http
+  version: 0.1.0
+  vendor: your_org
+  description: DJI Mavic 3E HTTP API control primitive
+  license: MulanPSL-2.0
+
+start: bash scripts/start.sh
+stop: bash scripts/stop.sh
+
+capabilities:
+  - name: robonix/primitive/drone/status
+  - name: robonix/primitive/drone/takeoff
+  - name: robonix/primitive/drone/mission/start
+  - name: robonix/primitive/drone/mode/switch
+  - name: robonix/primitive/drone/manual/climb
+  - name: robonix/primitive/drone/manual/move_left
+  - name: robonix/primitive/drone/manual/move_right
+  - name: robonix/primitive/drone/manual/rotate
+  - name: robonix/primitive/drone/waypoint/add
+  - name: robonix/primitive/drone/waypoint/clear
+  - name: robonix/primitive/drone/waypoint/list
+  - name: robonix/primitive/drone/cruise/start
+  - name: robonix/primitive/drone/home
+  - name: robonix/primitive/drone/emergency_stop
+  - name: robonix/primitive/drone/reset
