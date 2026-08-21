@@ -1,9 +1,0 @@
-[contract]
-id      = "robonix/primitive/drone/move_relative"
-version = "1"
-kind    = "primitive"
-idl     = "drone/srv/MoveRelative.srv"
-description = "机体系相对移动：dx 前后（前为正）、dy 左右（右为正）、dz 上下（上为正）、dyaw 偏航（度）。用于语音近距离微调（往上/往下/往左/往右/回来）。"
-
-[mode]
-type = "rpc"

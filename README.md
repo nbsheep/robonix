@@ -67,7 +67,7 @@
 | PC → 无人机 | RoboNIX → drone_bridge → HTTP POST → RC Pro → MSDK → M3E | HTTP/JSON |
 | 无人机 → PC | M3E → MSDK → RC Pro → HTTP response → drone_bridge → Atlas | HTTP/JSON |
 | 视频流 | M3E → MSDK → RC Pro → `/api/video` MJPEG → 浏览器 | HTTP MJPEG |
-| 对话控制 | 用户 → `rbnx chat` (Liaison) → Executor → drone_bridge → ... | gRPC + HTTP |
+| 对话控制 | 用户 → `rbnx chat` (Liaison) → Executor → drone_bridge → ... | MCP + HTTP |
 
 ---
 
@@ -85,7 +85,7 @@ nbsheep/robonix/               ← 本仓库（monorepo：原语 + Android 端�
 │   └── start.sh               ← 启动脚本（rbnx boot 调用）
 ├── drone_bridge/              ← 本项目原语（部署到 WSL2）
 │   ├── __init__.py            ← 包初始化
-│   ├── driver.py              ← 原语能力处理器（@drone.grpc）
+│   ├── driver.py              ← 原语能力处理器（@drone.mcp）
 │   └── main.py                ← 核心：HTTP 客户端 + 遥测 + Atlas 注册
 ├── web/
 │   └── dashboard.html         ← 增强版网页控制台（带实时视频）
@@ -332,19 +332,18 @@ RC_PRO_IP=192.168.x.x python3 drone_bridge/main.py
 ```
 
 ```
-drone> status          # 查看完整状态
-drone> takeoff         # 起飞悬停
-drone> vel 0 0 1.0 0 2 # 6DOF 速度向量：vx vy vz wz 持续秒数（上升 1m/s × 2s）
-drone> mv 1 -0.5 0 0   # 相对移动 dx dy dz dyaw
-drone> rv -1 0.5 2     # 旋转：右转 0.5rad/s × 2s（direction 1=左/-1=右）
-drone> gimbal -30      # 云台俯仰 -30°
+drone> status          # 查看原始 /api/status
+drone> state           # 查看完整状态（status + GPS）
+drone> takeoff 3       # 起飞爬升至 3m（走 /api/start）
+drone> vel 0 1.0 0 2   # 速度向量：vy vz wz 持续秒数（上升 1m/s × 2s）
+drone> rv 1 0.5 1      # 旋转：右转 0.5rad/s × 1s（direction 1=右/-1=左）
 drone> gv 20 0 2       # 云台角速度：俯仰 20°/s × 2s（上抬 40°）
-drone> greset          # 云台回中（机头正前方）
+drone> greset          # 云台回中（平视 /api/gimbal level）
 drone> video           # 获取 MJPEG 视频流 URL
-drone> photo           # 单张拍照
-drone> zoom 5          # 变焦 5x
-drone> land            # 降落
-drone> video           # 打印 MJPEG 视频流 URL
+drone> photo           # 单张拍照（/api/camera photo）
+drone> hover           # 紧急悬停（/api/stop）
+drone> rth             # 返航降落（/api/gohome）
+drone> land            # 原地降落（API 无端点，返回失败）
 ```
 
 ---
@@ -374,35 +373,39 @@ drone> video           # 打印 MJPEG 视频流 URL
 
 | 方法 | 路径 | Body | 说明 |
 |------|------|------|------|
-| POST | `/api/mode` | `{mode: "STANDBY"\|"CRUISE"\|"MANUAL"}` | 切换操作模式 |
+| POST | `/api/mode` | `{mode: "standby"\|"cruise"\|"manual"}` | 切换操作模式（小写） |
 
 ### 巡航
 
 | 方法 | 路径 | Body | 说明 |
 |------|------|------|------|
 | POST | `/api/add_waypoint` | `{latitude, longitude, altitude}` | 添加 GPS 航点 |
+| POST | `/api/capture_gps` | — | 获取当前 GPS 坐标 |
 | POST | `/api/clear_waypoints` | — | 清空所有航点 |
 | POST | `/api/start_cruise` | — | 开始巡航（需至少 1 个航点） |
+| POST | `/api/pause_cruise` | — | 紧急悬停 / 中止巡航 |
+| POST | `/api/resume_cruise` | — | 重启巡航 |
 
 ### 手动操控
 
 | 方法 | 路径 | Body | 说明 |
 |------|------|------|------|
 | POST | `/api/takeoff_hover` | — | 起飞并悬停 |
-| POST | `/api/manual` | `{action: "climb", value: 1.0}` | 爬升/下降 N 米 |
+| POST | `/api/manual` | `{action: "climb", value: 1.0}` | 升降 N 米（正升负降） |
 | POST | `/api/manual` | `{action: "move_left", value: 1.0}` | 左移 N 米 |
 | POST | `/api/manual` | `{action: "move_right", value: 1.0}` | 右移 N 米 |
-| POST | `/api/manual` | `{action: "move_forward", value: 1.0}` | 前进 N 米 |
-| POST | `/api/manual` | `{action: "move_backward", value: 1.0}` | 后退 N 米 |
-| POST | `/api/manual` | `{action: "rotate", value: 90}` | 旋转 N 度 |
+| POST | `/api/manual` | `{action: "rotate", value: 90}` | 旋转 N 度（正右负左） |
+
+> `/api/manual` 仅 `missionState == HOVERING` 悬停态可用。
 
 ### 云台 / 相机
 
 | 方法 | 路径 | Body | 说明 |
 |------|------|------|------|
-| POST | `/api/gimbal` | `{pitch, roll, yaw}` | 设置云台绝对姿态（度） |
-| POST | `/api/camera/capture` | — | 触发单张拍照 |
-| POST | `/api/camera/zoom` | `{factor: 5.0}` | 设置变焦倍率 |
+| POST | `/api/gimbal` | `{action, step}` | 云台控制（pitch_up/pitch_down/yaw_left/yaw_right/look_down/level，step 0.5~180） |
+| POST | `/api/camera` | `{action}` | 相机控制（photo/start_record/stop_record/zoom_in/zoom_out） |
+
+> `/api/gimbal` 与 `/api/camera` 仅巡航进行中可用（`cruiseActive == true`）。
 
 ### 状态返回示例
 
@@ -412,17 +415,23 @@ drone> video           # 打印 MJPEG 视频流 URL
   "altitude": 0.0,
   "sdkRegistered": true,
   "productConnected": true,
-  "statusMessage": "待命 - 选择一个模式开始",
-  "vsEnabled": false,
+  "statusMessage": "",
+  "vsEnabled": true,
   "operationMode": "STANDBY",
   "waypointCount": 0,
   "waypoints": [],
   "cruiseWaypointIndex": -1,
+  "cruiseActive": false,
+  "cruisePaused": false,
+  "cruiseFeedback": "",
+  "cameraFeedback": "",
   "climbHeight": 1.0,
   "moveDistance": 0.5,
   "yawAngle": 0.0,
-  "sdkStatusText": "✓ SDK已激活",
-  "sdkInitComplete": true
+  "sdkStatusText": "SDK已激活",
+  "sdkInitProcess": "REGISTERED",
+  "sdkInitComplete": true,
+  "sdkInitStarted": true
 }
 ```
 
@@ -543,10 +552,12 @@ curl http://<RC_Pro_IP>:8080/api/status
 ## 下一步
 
 1. **编写 Skill**：创建 Robonix skill，让 `rbnx chat` 能用自然语言控制无人机
-2. **GPS 遥测增强**：在 status API 中加入实时 GPS 坐标（目前 Android 端有 `currentPosition` 但未暴露到 status JSON）
-3. **电池/速度遥测**：扩展 status API 返回更多 MSDK 飞行数据
-4. **自动避障**：通过 MSDK 的感知 API 获知障碍物并自动规避
-5. **多机编队**：多个 drone_bridge 实例控制多架无人机
+2. **原地降落端点**：Android 端补 `/api/land`（当前 `land` 原语固定返回失败）
+3. **连续速度控制**：Android 端补 `/api/velocity`、`/api/gimbal/velocity`（VirtualStick / KeyGimbalSpeed），
+   让 `move_velocity` / `gimbal_velocity` 从「离散近似」升级为真连续控制
+4. **电池/更多遥测**：扩展 `/api/status` 返回电量、电压、航向等（当前 v4.0 不返回）
+5. **自动避障**：通过 MSDK 的感知 API 获知障碍物并自动规避
+6. **多机编队**：多个 drone_bridge 实例控制多架无人机
 
 ---
 

@@ -3,7 +3,7 @@ id      = "robonix/primitive/drone/gimbal_reset"
 version = "1"
 kind    = "primitive"
 idl     = "drone/srv/GimbalReset.srv"
-description = "云台回中：恢复到初始中心姿态（默认 pitch=0/roll=0/yaw=0，即机头正前方水平），可选自定义回中目标角。内部经 /api/gimbal 绝对角度下发，并同步更新客户端跟踪的云台姿态（避免后续增量旋转基准漂移）。"
+description = "云台回中（平视）：调用 /api/gimbal {action:\"level\"}，恢复机头正前方水平。仅巡航中可用（cruiseActive==true）。"
 
 [mode]
 type = "rpc"

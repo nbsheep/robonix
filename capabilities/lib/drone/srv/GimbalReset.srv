@@ -1,5 +1,3 @@
-float64 pitch    # 回中后俯仰角（度，默认 0）
-float64 roll     # 回中后横滚角（度，默认 0）
-float64 yaw      # 回中后偏航角（度，默认 0）
+# 云台回中（平视）：对应 /api/gimbal {action:"level"}，仅巡航中可用。
 ---
 std_msgs/String status

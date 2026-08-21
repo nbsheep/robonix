@@ -3,7 +3,7 @@ id      = "robonix/primitive/drone/rotate_velocity"
 version = "1"
 kind    = "primitive"
 idl     = "drone/srv/RotateVelocity.srv"
-description = "旋转（方向·角速度·持续时间）：direction 1=左转/-1=右转，angular_velocity 偏航角速度 (rad/s)，duration 持续秒数。dyaw = direction × degrees(angular_velocity × duration)，经 /api/manual rotate 离散下发（近似）。取代旧 rotate（绝对角度版，未注册已删）。"
+description = "旋转（方向·角速度·持续时间）：direction 1=右转/-1=左转（对齐 /api/manual rotate 正右负左），angular_velocity 偏航角速度 (rad/s)，duration 持续秒数。dyaw = direction × degrees(|angular_velocity| × duration)，经 /api/manual rotate 离散下发（近似，需 HOVERING 悬停态）。"
 
 [mode]
 type = "rpc"

@@ -1,9 +1,0 @@
-[contract]
-id      = "robonix/primitive/drone/state_position"
-version = "1"
-kind    = "primitive"
-idl     = "drone/srv/GetPosition.srv"
-description = "获取无人机当前全局位姿（GPS 经纬度 + 相对高度 + 航向角）。"
-
-[mode]
-type = "rpc"

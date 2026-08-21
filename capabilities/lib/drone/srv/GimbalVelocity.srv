@@ -1,6 +1,6 @@
-float64 vpitch    # 云台俯仰角速度（°/s），正 = 抬头向上
-float64 vroll     # 云台横滚角速度（°/s）—— M3E 云台一般不支持，忽略
-float64 vyaw      # 云台偏航角速度（°/s），正 = 向右（机头方向顺时针）
+float64 vpitch    # 云台俯仰角速度（°/s），正 = 抬头向上（pitch_up）
+float64 vroll     # 云台横滚角速度（°/s）—— API 不支持，忽略
+float64 vyaw      # 云台偏航角速度（°/s），正 = 向右（yaw_right）
 float64 duration  # 持续秒数（0 = 瞬时/单次）
 ---
 std_msgs/String status

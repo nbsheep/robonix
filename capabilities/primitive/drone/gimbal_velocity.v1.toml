@@ -3,7 +3,7 @@ id      = "robonix/primitive/drone/gimbal_velocity"
 version = "1"
 kind    = "primitive"
 idl     = "drone/srv/GimbalVelocity.srv"
-description = "云台 3DOF 角速度向量：vpitch/vroll/vyaw 俯仰/横滚/偏航角速度（°/s），duration 持续秒数。当前实现按 角速度×时长 折算为角度增量，叠加到客户端跟踪的当前云台姿态后经 /api/gimbal 绝对角度下发（离散近似）；真正连续云台速度控制需 APK 新增 /api/gimbal/velocity（KeyGimbalSpeed）。"
+description = "云台 3DOF 角速度向量：vpitch/vyaw 俯仰/偏航角速度（°/s），duration 持续秒数，vroll 忽略。按 角速度×时长 折算为总角度后经 /api/gimbal {action, step} 步进下发（仅巡航中可用，离散近似）。"
 
 [mode]
 type = "rpc"

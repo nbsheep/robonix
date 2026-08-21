@@ -26,20 +26,15 @@ robot:
           capabilities:
             - { path: robonix/primitive/drone/takeoff, description: 起飞并悬停至指定高度 }
             - { path: robonix/primitive/drone/land, description: 原地降落并锁定电机 }
-            - { path: robonix/primitive/drone/move_ee, description: 飞行至目标 GPS 位姿 }
-            - { path: robonix/primitive/drone/hover, description: 紧急悬停，取消当前运动 }
-            - { path: robonix/primitive/drone/rth, description: 智能返航至起飞点 }
-            - { path: robonix/primitive/drone/move_relative, description: 机体系相对移动（前后/左右/上下/偏航） }
             - { path: robonix/primitive/drone/move_velocity, description: 机体系 6DOF 速度向量（前后/左右/上下 + 偏航） }
             - { path: robonix/primitive/drone/rotate_velocity, description: 旋转（方向·角速度·持续时间） }
-            - { path: robonix/primitive/drone/gimbal_rotate, description: 设置云台绝对姿态（俯仰/横滚/偏航） }
+            - { path: robonix/primitive/drone/hover, description: 紧急悬停，取消当前运动 }
+            - { path: robonix/primitive/drone/rth, description: 智能返航至起飞点 }
             - { path: robonix/primitive/drone/gimbal_velocity, description: 云台 3DOF 角速度向量（俯仰/偏航 °/s） }
             - { path: robonix/primitive/drone/gimbal_reset, description: 云台回中（默认机头正前方） }
             - { path: robonix/primitive/drone/camera_capture, description: 触发相机单张拍照 }
             - { path: robonix/primitive/drone/camera_video, description: 获取视频流 URL（MJPEG） }
-            - { path: robonix/primitive/drone/camera_zoom, description: 设置相机混合变焦倍率 }
-            - { path: robonix/primitive/drone/state_position, description: 获取当前 GPS 位姿 }
-            - { path: robonix/primitive/drone/state_battery, description: 获取电池电量 }
+            - { path: robonix/primitive/drone/state, description: 获取完整状态（电量/位姿/模式） }
 
 description:
   summary: >
@@ -49,12 +44,12 @@ description:
     - 起飞 / 降落 / 悬停
     - GPS 航点巡航
     - 手动操控（虚拟摇杆）
-    - 机体系相对移动（前后/左右/上下/偏航）
     - 机体系 6DOF 速度向量控制
-    - 云台姿态控制（俯仰/横滚/偏航）
+    - 旋转（方向·角速度·持续时间）
     - 云台角速度向量控制（俯仰/偏航 °/s）
-    - 相机拍照 / 变焦
-    - 实时遥测（高度、GPS、电池、飞行模式）
+    - 云台回中
+    - 相机拍照 / 视频流
+    - 实时遥测（电量、电压、GPS、高度、航向、飞行模式、任务状态）
     - MJPEG 视频流 (640px, ~12fps)
     - 自动返航
   cannot_do:

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # drone_bridge 构建脚本
-# 运行 rbnx codegen 从 TOML 合约 + IDL 生成 proto stub（drone_pb2, std_msgs_pb2）
+# 运行 rbnx codegen 从 TOML 合约 + IDL 生成 proto stub（drone_pb2, std_msgs_pb2），
+# 并加 --mcp 生成 MCP dataclass（robonix_mcp_types/{drone_mcp,std_msgs_mcp}）。
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,7 +13,7 @@ echo "[drone_bridge] rbnx codegen..."
 
 if command -v rbnx &>/dev/null; then
     cd "$PROJECT_DIR"
-    rbnx codegen -p . --out-dir rbnx-build/codegen
+    rbnx codegen -p . --out-dir rbnx-build/codegen --mcp
     echo "[drone_bridge] codegen 完成"
 else
     echo "[drone_bridge] ⚠ rbnx 未安装，跳过 codegen"

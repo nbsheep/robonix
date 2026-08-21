@@ -3,7 +3,7 @@ id      = "robonix/primitive/drone/land"
 version = "1"
 kind    = "primitive"
 idl     = "drone/srv/Land.srv"
-description = "控制无人机原地降落并锁定电机。"
+description = "控制无人机原地降落并锁定电机。（⚠️ API v4.0 无 /api/land 原地降落端点，暂返回失败；可用 rth 返航降落或 stop 悬停。）"
 
 [mode]
 type = "rpc"

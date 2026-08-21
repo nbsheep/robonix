@@ -1,4 +1,4 @@
-float64 direction         # 旋转方向：1 = 左转，-1 = 右转
+float64 direction         # 旋转方向：1 = 右转（顺时针），-1 = 左转（对齐 /api/manual rotate 正右负左）
 float64 angular_velocity  # 偏航角速度 (rad/s)，取绝对值
 float64 duration          # 持续秒数
 ---

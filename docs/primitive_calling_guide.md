@@ -2,6 +2,7 @@
 
 > 本文档说明如何调用 11 个无人机原语，以及如何逐项验证它们的正确性。
 > 原语 ID 统一为 `robonix/primitive/drone/<name>`，共三层调用方式，从底层到上层。
+> 底层 HTTP 以 `C:\Users\nice\Desktop\WEB_API.md`（无人机控制台 Web HTTP API v4.0）为准。
 
 ---
 
@@ -10,16 +11,19 @@
 | 层级 | 入口 | 适用场景 |
 |------|------|---------|
 | **① HTTP API 直连** | `POST http://<RC_PRO_IP>:8080/...` | 真机最底层验证、排除桥接/APK 问题 |
-| **② drone_bridge REPL** | `python3 -m drone_bridge.main` | 不依赖 RoboNIX，快速调试原语映射 |
-| **③ RoboNIX 原语** | gRPC `robonix/primitive/drone/*` | 正式集成，供 Atlas / skill 调度 |
+| **② drone_bridge REPL** | `python -m drone_bridge.main` | 不依赖 RoboNIX，快速调试原语映射 |
+| **③ RoboNIX 原语** | MCP `robonix/primitive/drone/*` | 正式集成，供 executor / `rbnx call` 调度 |
 
 调用链（正向）：
 
 ```
-RoboNIX (③) → drone_bridge/driver.py (grpc handler)
+RoboNIX (③) → drone_bridge/driver.py (MCP handler)
             → main.py DroneClient (HTTP)
             → Drone_test APK WebServer (:8080) → MSDK v5 → M3E 无人机
 ```
+
+> ⚠️ 关键：executor 的外部能力分发硬编码走 `Transport::Mcp`，所以 ③ 层是 **MCP**（`@drone.mcp(...)`），
+> 不是 gRPC；`rbnx call` 只认 MCP 声明的能力。
 
 验证时建议**从 ① 往 ③ 逐层确认**，哪一层断了一目了然。
 
@@ -50,24 +54,19 @@ curl http://10.225.57.15:8080/api/status
 
 ### 2.1 状态查询（先做，最安全）
 
-#### state_battery — 电量
+#### state — 完整状态
 
 | | |
 |--|--|
-| ① HTTP | `curl http://10.225.57.15:8080/api/status` → 看 `batteryPercent` / `batteryVoltage` |
-| ② REPL | `bat` |
-| ③ RoboNIX | `robonix/primitive/drone/state_battery`（无输入） |
+| ① HTTP | `curl http://10.225.57.15:8080/api/status` |
+| ② REPL | `state`（`status` 看原始 /api/status） |
+| ③ RoboNIX | `robonix/primitive/drone/state`（无输入） |
 
-**验证判据**：`batteryPercent` 为 0–100 的合理值、`batteryVoltage` 约 40000–53000 mV（4S 电池 13–21V）。若都返回 0，说明飞机未连接（MSDK 读不到电池组件）——这正是之前排掉的问题。
+**验证判据**：`missionState` 为合法枚举（IDLE/TAKEOFF/CLIMBING/HOVERING/…）、`altitude` 合理、
+`sdkRegistered=true`、`productConnected=true`。`state` 原语还会合并 `/api/capture_gps` 的
+`latitude`/`longitude`（GPS 未定位时缺失，并附 `gpsError`）。
 
-#### state_position — 位置
-
-| | |
-|--|--|
-| ② REPL | `pos` |
-| ③ RoboNIX | `robonix/primitive/drone/state_position`（无输入） |
-
-**验证判据**：`latitude/longitude` 与手机 GPS 大致一致，`altitude` 起飞前 ≈ 0，`heading` 0–360°。
+> 注意：API v4.0 的 `/api/status` **不返回** 电量/电压/经纬度/航向，别再依赖 `batteryPercent` 等旧字段。
 
 ---
 
@@ -75,7 +74,7 @@ curl http://10.225.57.15:8080/api/status
 
 > ⚠️ 运动类原语会真的让飞机动。**先在室内/低空（1–2m）、有人看护**下逐项验证。
 
-#### takeoff — 起飞悬停
+#### takeoff — 起飞爬升
 
 | | |
 |--|--|
@@ -83,33 +82,62 @@ curl http://10.225.57.15:8080/api/status
 | ③ RoboNIX | 输入 `altitude=3.0` |
 
 **验证判据**：飞机起飞、爬升至约 3m 后悬停；`status` 显示 `missionState` 依次 TAKEOFF→CLIMBING→HOVERING。
+底层走 `/api/start {climbHeight, moveDistance:0, yawAngle:0}`。
 
-#### move_relative — 机体系相对移动（场景②核心）
-
-| | |
-|--|--|
-| ② REPL | `mv <dx> <dy> <dz> [dyaw]`，如 `mv 0 0 1 0`（上升 1m） |
-| ③ RoboNIX | 输入 `dx/dy/dz/dyaw` 四个 float64 |
-
-参数方向约定（机体系，即机头朝向为前）：
-
-| 分量 | 正 | 负 |
-|------|----|----|
-| `dx` | 前进 | 后退 |
-| `dy` | 右移 | 左移 |
-| `dz` | 上升 | 下降 |
-| `dyaw` | 右转（度） | 左转 |
-
-**验证判据**：逐项下发 `mv 0 0 1 0`（上升）→ `mv 0 1 0 0`（右移）→ `mv 1 0 0 0`（前进）→ `mv 0 0 0 45`（右转 45°），观察飞机按对应方向移动。返回 JSON 里 `moves` 列出实际下发的轴。多轴串行执行（先上下→旋转→前后→左右）。
-
-#### gimbal_rotate — 云台姿态（场景①核心）
+#### move_velocity — 机体系 6DOF 速度向量
 
 | | |
 |--|--|
-| ② REPL | `gimbal -30`（俯仰向下 30°） |
-| ③ RoboNIX | 输入 `pitch/roll/yaw`（度，绝对角度） |
+| ② REPL | `vel <vy> <vz> [wz] [dur]`，如 `vel 0 1 0 2`（上升 1 m/s × 2s） |
+| ③ RoboNIX | 输入 `vx/vy/vz/wx/wy/wz/duration` |
 
-**验证判据**：云台俯仰到指定角度（M3E 俯仰范围约 −90°~+30°）。摄像头朝下拍地面用 `pitch=-90`。**无需起飞也可验证**。
+参数方向约定（机体系）：
+
+| 分量 | 含义 | 正 | 生效性 |
+|------|------|----|--------|
+| `vy` | 左右线速度 (m/s) | 右移 | ✅ 走 `/api/manual` move_left/right |
+| `vz` | 上下线速度 (m/s) | 上升 | ✅ 走 `/api/manual` climb |
+| `wz` | 偏航角速度 (rad/s) | 右转 | ✅ 走 `/api/manual` rotate |
+| `vx` | 前后线速度 (m/s) | 前进 | ❌ API 无前后端点，忽略 |
+| `wx/wy` | 滚转/俯仰角速度 | — | ❌ 四旋翼不可独立控制，忽略 |
+
+**验证判据**：逐项下发 `vel 0 1 0 2`（上升）→ `vel 0.5 0 0 2`（右移）→ `vel 0 0 0.5 2`（右转），
+观察飞机按对应方向移动。返回 JSON 里 `moves` 列出实际下发的轴。位移 = 速度 × 时长（离散近似）。
+**前置：必须在 HOVERING 悬停态**（先 `takeoff` 再 `vel`）。
+
+#### rotate_velocity — 旋转
+
+| | |
+|--|--|
+| ② REPL | `rv [dir] [wz] [dur]`，如 `rv 1 0.5 1`（右转 0.5 rad/s × 1s） |
+| ③ RoboNIX | 输入 `direction/angular_velocity/duration` |
+
+`direction`：`1`=右转、`-1`=左转；`angular_velocity` 取绝对值 (rad/s)。实际转角 = `direction × degrees(|ω| × duration)`。
+
+---
+
+### 2.3 云台 / 相机（⚠️ 仅巡航进行中可用 `cruiseActive==true`）
+
+> 云台/相机三个原语底层都要求巡航中。想不开飞机验证云台/相机，需先切到巡航模式并起飞巡航。
+
+#### gimbal_velocity — 云台角速度
+
+| | |
+|--|--|
+| ② REPL | `gv <vpitch> [vyaw] [dur]`，如 `gv 20 0 2`（抬头 20°/s × 2s） |
+| ③ RoboNIX | 输入 `vpitch/vroll/vyaw/duration` |
+
+- `vpitch` 正=抬头（pitch_up）、`vyaw` 正=右转（yaw_right）；`vroll` 忽略。
+- 折算「角度 = 角速度 × 时长」后走 `/api/gimbal {action, step}`（step 0.5~180 自动钳位）。
+
+#### gimbal_reset — 云台回中（平视）
+
+| | |
+|--|--|
+| ② REPL | `greset` |
+| ③ RoboNIX | `robonix/primitive/drone/gimbal_reset`（无输入） |
+
+对应 `/api/gimbal {action:"level"}`。
 
 #### camera_capture — 拍照
 
@@ -118,79 +146,75 @@ curl http://10.225.57.15:8080/api/status
 | ② REPL | `photo` |
 | ③ RoboNIX | `robonix/primitive/drone/camera_capture`（无输入） |
 
-**验证判据**：相机快门触发（听快门声 / 看指示灯）；照片出现在相机 SD 卡。**无需起飞**。
+对应 `/api/camera {action:"photo"}`。**验证判据**：相机快门触发；照片出现在相机 SD 卡。
 
-#### camera_zoom — 变焦
-
-| | |
-|--|--|
-| ② REPL | `zoom 5` |
-| ③ RoboNIX | 输入 `factor`（约 1.0–28.0） |
-
-**验证判据**：视频画面拉近，`/api/video` 画面或 DJI 图传可见倍率变化。**无需起飞**。
-
-#### move_ee — 飞到 GPS 点
+#### camera_video — 视频流
 
 | | |
 |--|--|
-| ② REPL | `move_ee <lat> <lng> [alt]` |
-| ③ RoboNIX | 输入 `latitude/longitude/altitude` |
+| ② REPL | `video` |
+| ③ RoboNIX | `robonix/primitive/drone/camera_video`（无输入） |
 
-**验证判据**：飞机飞到目标经纬度（误差 < 2m）并到指定高度。**需 GPS 良好**，不要在室内测。
+返回 MJPEG 流 URL（`http://<ip>:8080/api/video`），浏览器 / ffmpeg 拉流即可。
 
-#### hover / land / rth — 安全原语
+---
 
-| 原语 | REPL | 判据 |
-|------|------|------|
-| `hover` | `hover` | 飞机立即停止、原地悬停 |
-| `land` | `land` | 原地降落并锁定 |
-| `rth` | `rth` | 自动返回起飞点并降落 |
+### 2.4 安全原语
 
-**验证判据**：这三个是安全兜底，务必在飞行中实测 `hover` 能立刻停下、`rth` 能返航降落。**这是最关键的验证项。**
+| 原语 | REPL | 底层 | 判据 |
+|------|------|------|------|
+| `hover` | `hover` | `/api/stop` | 飞机立即停止、原地悬停 |
+| `rth` | `rth` | `/api/gohome` | 自动返回起飞点并降落 |
+| `land` | `land` | ⚠️ 无端点 | 固定返回失败（见下） |
+
+**验证判据**：`hover` 能立刻停下、`rth` 能返航降落，**这是最关键的验证项**。
+
+> `land` 原语：API v4.0 无 `/api/land` 端点，调用固定返回 `{"success":false,"message":"API v4.0 无 /api/land ..."}`。
+> 需降落用 `rth`。
 
 ---
 
 ## 3. 三层调用示例（同一原语对比）
 
-以 `state_battery` 为例，三层等价：
+以 `state` 为例，三层等价：
 
 **① HTTP 直连：**
 ```bash
 curl -s http://10.225.57.15:8080/api/status | python3 -m json.tool
-# 输出里找 "batteryPercent": 87, "batteryVoltage": 16800
+# 输出里看 "missionState": "IDLE", "altitude": 0.0, "sdkRegistered": true
 ```
 
 **② REPL：**
 ```bash
-RC_PRO_IP=10.225.57.15 python3 -m drone_bridge.main
-drone> bat
-# {"percent": 87.0, "voltage": 16800.0}
+RC_PRO_IP=10.225.57.15 python -m drone_bridge.main
+drone> state
+# {"missionState":"IDLE","altitude":0.0,...}
 ```
 
-**③ RoboNIX gRPC：** 由 `driver.py` 的 handler 处理，返回 `GetBattery_Response(battery=<JSON 字符串>)`。
-上游（Atlas / skill）通过 `robonix/primitive/drone/state_battery` 这个 capability 路径调用，
-响应体 `status` / `battery` 字段为 JSON 字符串（`percent` + `voltage`）。
+**③ RoboNIX MCP：** 由 `driver.py` 的 `@drone.mcp("robonix/primitive/drone/state")` handler 处理，
+返回 `State_Response(status=<JSON 字符串>)`。上游通过 `rbnx call` 调用：
+
+```bash
+rbnx call robonix/primitive/drone/state
+```
 
 > 说明：① ② 是 `main.py` 的 `CommandHandler` 本地映射，不需要 RoboNIX 运行时；
-> ③ 走 `driver.py` 的 `@drone.grpc(...)` 注册，需先 `rbnx boot`。
+> ③ 走 `driver.py` 的 `@drone.mcp(...)` 注册，需先 `rbnx boot`。
 
 ---
 
 ## 4. 端到端验证流程（推荐顺序）
 
 ```
-第 1 步  连通性    curl /api/status  → sdkRegistered=true, productConnected=true
-第 2 步  电量      bat / status      → percent > 0（之前的问题是这里返回 0）
-第 3 步  位置      pos               → 经纬度合理
-第 4 步  云台/相机 gimbal -30 / photo / zoom 5  （无需起飞，最安全）
-第 5 步  起飞      takeoff 3         → 爬升悬停
-第 6 步  相对移动  mv 0 0 1 0 / mv 1 0 0 0 ...  （场景②）
-第 7 步  航点      move_ee <lat> <lng> 5      （场景①抵近，需 GPS）
-第 8 步  安全      hover / rth / land           （务必实测）
+第 1 步  连通性    curl /api/status            → sdkRegistered=true, productConnected=true
+第 2 步  状态      state                       → missionState / altitude / GPS 合理
+第 3 步  起飞      takeoff 3                   → 爬升悬停
+第 4 步  相对移动  vel 0 1 0 2 / vel 0 0 0.5 2 → 悬停态下上升/右移/右转
+第 5 步  安全      hover / rth                 → 务必实测
+第 6 步  云台/相机 gv / greset / photo / video → 需先巡航（cruiseActive=true）
 ```
 
-完成第 4 步即证明「云台+相机」链路通（场景①硬件原语到位）；
-完成第 6 步即证明「相对位移」链路通（场景②硬件原语到位）。
+完成第 4 步即证明「相对位移」链路通；完成第 6 步即证明「云台+相机」链路通。
 
 ---
 
@@ -198,12 +222,12 @@ drone> bat
 
 没有飞机/RC Pro 在跟前时，只能做**静态 + 连通性**验证：
 
-- [ ] `python3 -m py_compile drone_bridge/main.py drone_bridge/driver.py` 通过（语法）
-- [ ] `bash scripts/build.sh` 里 `rbnx codegen` 能生成 `drone_pb2`（契约合法）
+- [ ] `python -m py_compile drone_bridge/main.py drone_bridge/driver.py` 通过（语法）
+- [ ] `bash scripts/build.sh` 里 `rbnx codegen --mcp` 能生成 `drone_mcp`（契约合法）
 - [ ] `rbnx caps` 列出 12 个 caps（含 driver + 11 原语）
 - [ ] `curl /api/status` 返回 200（APK 侧 WebServer 起来，即使飞机没连）
 
-**无法无真机验证**：一切真正让飞机动的行为（takeoff/move/gimbal/photo/zoom 的实际效果），
+**无法无真机验证**：一切真正让飞机动的行为（takeoff/move/gimbal/photo 的实际效果），
 这些必须真机实测。
 
 ---
@@ -212,9 +236,10 @@ drone> bat
 
 | 现象 | 原因 | 处理 |
 |------|------|------|
-| `batteryPercent` 恒为 0 | 飞机未连接/未开机 | 确认 APK 里 `productConnected=true` |
 | HTTP 连不上 8080 | APK 未启动 / IP 错误 | RC Pro 上打开 APK，核对 IP |
-| `mv` 下发无响应 | 不在悬停态 | 先 `takeoff` 进入 HOVERING 再 `mv` |
-| 云台/相机无反应 | 相机组件未就绪 | 稍等几秒或重启 APK |
-| `move_ee` 不动 | GPS 弱 / 航点距离过近 | 户外开阔地、目标点 > 5m |
+| `sdkRegistered=false` | SDK 未激活 | 等 APK 页面显示「SDK已激活」 |
+| `productConnected=false` | 飞机未连接 | 确认无人机开机并对频 |
+| `vel` 下发无响应 | 不在悬停态 | 先 `takeoff` 进入 HOVERING 再 `vel` |
+| 云台/相机无反应 | 未巡航 | 需 `cruiseActive==true`（巡航中） |
+| `state` 缺 latitude/longitude | GPS 未定位 | 户外开阔地、等待 GPS 锁定 |
 | 运动类都不动 | 虚拟摇杆未启用 | 查看 `vsEnabled`，重启 APK 重试 |

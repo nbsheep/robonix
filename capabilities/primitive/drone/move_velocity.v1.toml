@@ -3,7 +3,7 @@ id      = "robonix/primitive/drone/move_velocity"
 version = "1"
 kind    = "primitive"
 idl     = "drone/srv/MoveVelocity.srv"
-description = "机体系 6DOF 速度向量（twist）：vx/vy/vz 前后左右上下线速度 (m/s)，wx/wy/wz 角速度 (rad/s)，duration 持续秒数。当前实现按 速度×时长 折算为相对位移后经 /api/manual 离散下发（近似）；四旋翼位姿模式下 wx/wy 不可独立控制，仅 wz 偏航生效。"
+description = "机体系 6DOF 速度向量（twist）：vy/vz/wz 左右/上下/偏航 生效，vx 前后（API v4.0 无端点）与 wx/wy 忽略；duration 持续秒数。按 速度×时长 折算为相对位移后经 /api/manual 离散下发（近似，需 HOVERING 悬停态）。"
 
 [mode]
 type = "rpc"

@@ -19,7 +19,8 @@ export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
 # ============================================================
 ROBONIX_PYLIB="${ROBONIX_PYLIB:-$HOME/robonix/pylib/robonix-api}"
 CODEGEN_DIR="$PROJECT_DIR/rbnx-build/codegen/proto_gen"
-export PYTHONPATH="$PROJECT_DIR:$ROBONIX_PYLIB:$CODEGEN_DIR:${PYTHONPATH:-}"
+MCP_TYPES_DIR="$PROJECT_DIR/rbnx-build/codegen/robonix_mcp_types"
+export PYTHONPATH="$PROJECT_DIR:$ROBONIX_PYLIB:$CODEGEN_DIR:$MCP_TYPES_DIR:${PYTHONPATH:-}"
 
 # ============================================================
 # 2. 解析 RC Pro 地址
@@ -41,6 +42,8 @@ echo "[drone_bridge] Atlas:  ${RBNX_ATLAS:-auto}"
 # 3. 安装运行时依赖
 # ============================================================
 pip3 install -q requests 2>/dev/null || true
+# robonix-api 依赖 mcp.server.fastmcp，须 <2（2.0 移除了 fastmcp 路径）
+pip3 install -q "mcp>=1.0,<2" 2>/dev/null || true
 
 # ============================================================
 # 4. 启动 RoboNIX 原语驱动

@@ -1,0 +1,3 @@
+# 无人机完整状态：任务状态/操作模式/高度/GPS/巡航状态/SDK状态，JSON 格式
+---
+std_msgs/String status

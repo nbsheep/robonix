@@ -1,9 +1,0 @@
-[contract]
-id      = "robonix/primitive/drone/move_ee"
-version = "1"
-kind    = "primitive"
-idl     = "drone/srv/MoveEe.srv"
-description = "控制无人机末端飞行至目标 GPS 位姿（经纬度+高度）。内部清空航点、添加单点、启动巡航。"
-
-[mode]
-type = "rpc"

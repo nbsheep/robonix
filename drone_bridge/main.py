@@ -4,18 +4,23 @@ drone_bridge 主入口 —— DJI M3E 无人机 Robonix 原语。
 
 架构:
   Robonix (rbnx chat / executor)
-      │ gRPC (Atlas)
+      │ MCP (driver.py)
       ▼
   drone_bridge (本模块)
-      │ HTTP (REST API)
+      │ HTTP (REST API v4.0)
       ▼
   RC Pro (Drone_test APK :8080)
       │ MSDK
       ▼
   M3E 无人机
 
+本模块职责：
+  1. DroneClient —— 封装 RC Pro 的 Web HTTP API（见 Desktop/WEB_API.md v4.0），
+     供 driver.py 的 MCP handler 调用。
+  2. 独立 REPL —— 不依赖 RoboNIX 时的手动联调入口（python3 main.py）。
+
 运行方式:
-  1. 通过 rbnx boot 自动启动（推荐）
+  1. 通过 rbnx boot 自动启动（driver.py 被 executor 加载）
   2. 手动测试: RC_PRO_IP=<ip> python3 main.py
 """
 
@@ -53,15 +58,23 @@ log = logging.getLogger("drone_bridge")
 # ---------------------------------------------------------------------------
 
 class DroneClient:
-    """RC Pro HTTP API 客户端"""
+    """RC Pro Web HTTP API (v4.0) 客户端。
+
+    对照 Desktop/WEB_API.md —— 无人机控制台 WebServer.kt v4.0：
+      - 状态:      GET  /api/status
+      - 视频流:    GET  /api/video  (MJPEG)
+      - 任务:      POST /api/start /api/stop /api/reset /api/gohome
+      - 模式:      POST /api/mode {mode: standby|cruise|manual}
+      - 巡航:      POST /api/add_waypoint /api/capture_gps /api/clear_waypoints
+                   /api/start_cruise /api/pause_cruise /api/resume_cruise
+      - 手动:      POST /api/takeoff_hover /api/manual {action, value}
+      - 云台/相机: POST /api/gimbal {action, step} /api/camera {action}
+    """
 
     def __init__(self, host: str = RC_PRO_IP, port: int = RC_PRO_PORT):
         self.base = f"http://{host}:{port}"
         self.timeout = 5.0  # 秒
         self._connected = False
-        # 客户端跟踪的云台当前姿态（度）。/api/status 不返回云台姿态，
-        # 故在本地维护，供 gimbal_velocity 做「角速度×时长→角度增量」折算。
-        self._gimbal = {"pitch": 0.0, "roll": 0.0, "yaw": 0.0}
 
     def check_connection(self) -> bool:
         """测试连接是否可达"""
@@ -80,12 +93,34 @@ class DroneClient:
     # ---- 查询 ----
 
     def get_status(self) -> Dict[str, Any]:
-        """获取完整飞行状态"""
+        """获取完整飞行状态（/api/status 原始 JSON）。
+
+        字段: missionState / altitude / sdkRegistered / productConnected /
+        statusMessage / vsEnabled / operationMode / waypointCount / waypoints /
+        cruiseWaypointIndex / cruiseActive / cruisePaused / cruiseFeedback /
+        cameraFeedback / climbHeight / moveDistance / yawAngle / sdkStatusText /
+        sdkInitProcess / sdkInitComplete / sdkInitStarted。
+        （API v4.0 不返回电量/电压/经纬度/航向。）
+        """
         try:
             r = requests.get(f"{self.base}/api/status", timeout=self.timeout)
             return r.json() if r.status_code == 200 else {"error": f"HTTP {r.status_code}"}
         except Exception as e:
             return {"error": str(e)}
+
+    def get_state(self) -> Dict[str, Any]:
+        """获取无人机完整状态（/api/status + /api/capture_gps 合并 GPS 坐标）。"""
+        status = self.get_status()
+        if "error" in status:
+            return status
+        state = dict(status)
+        gps = self.capture_gps()
+        if isinstance(gps, dict) and gps.get("success") is True and "latitude" in gps:
+            state["latitude"] = gps.get("latitude")
+            state["longitude"] = gps.get("longitude")
+        elif isinstance(gps, dict):
+            state["gpsError"] = gps.get("message", "GPS 未获取")
+        return state
 
     def get_video_url(self) -> str:
         """返回 MJPEG 视频流 URL"""
@@ -94,7 +129,7 @@ class DroneClient:
     # ---- 任务控制 ----
 
     def start_mission(self, climb: float = 1.0, move: float = 0.5, yaw: float = 0.0) -> Dict:
-        """启动自动任务（待命模式）"""
+        """启动自动任务（/api/start）。前置: missionState==IDLE 且 SDK 已激活。"""
         return self._post("/api/start", {
             "climbHeight": climb,
             "moveDistance": move,
@@ -102,174 +137,197 @@ class DroneClient:
         })
 
     def stop(self) -> Dict:
-        """紧急停止 → 悬停"""
+        """紧急停止 → 悬停（/api/stop）"""
         return self._post("/api/stop")
 
     def reset(self) -> Dict:
-        """重置 UI 状态"""
+        """重置 UI 状态（/api/reset）"""
         return self._post("/api/reset")
 
     def go_home(self) -> Dict:
-        """返航降落"""
+        """返航降落（/api/gohome）"""
         return self._post("/api/gohome")
 
     def land(self) -> Dict:
-        """原地降落（TODO: Drone_test APK 需新增 /api/land 端点）"""
-        return self._post("/api/land")
+        """原地降落。
+
+        ⚠️ API v4.0 无 /api/land 原地降落端点，暂返回失败；
+        可用 rth（返航降落）或 stop（紧急悬停）替代。
+        """
+        return {
+            "success": False,
+            "message": "API v4.0 无 /api/land 原地降落端点；请改用 rth 返航降落，或 stop 紧急悬停。",
+        }
 
     # ---- 模式切换 ----
 
-    def switch_mode(self, mode: str) -> Dict:
-        """切换模式: STANDBY / CRUISE / MANUAL"""
-        return self._post("/api/mode", {"mode": mode})
+    def switch_mode(self, mode: str = "standby") -> Dict:
+        """切换操作模式（/api/mode）。mode ∈ {standby, cruise, manual}，小写。"""
+        return self._post("/api/mode", {"mode": str(mode).lower()})
 
-    # ---- 巡航 ----
+    # ---- 巡航（航点） ----
 
     def add_waypoint(self, lat: float, lng: float, alt: float = 5.0) -> Dict:
-        """添加 GPS 航点"""
+        """添加 GPS 航点（/api/add_waypoint）"""
         return self._post("/api/add_waypoint", {
             "latitude": lat, "longitude": lng, "altitude": alt,
         })
 
+    def capture_gps(self) -> Dict:
+        """获取当前 GPS 坐标（/api/capture_gps）。成功时返回 latitude/longitude。"""
+        return self._post("/api/capture_gps")
+
     def clear_waypoints(self) -> Dict:
+        """清空航点（/api/clear_waypoints）"""
         return self._post("/api/clear_waypoints")
 
     def start_cruise(self) -> Dict:
+        """开始巡航（/api/start_cruise）。前置: IDLE 且至少 1 航点。"""
         return self._post("/api/start_cruise")
+
+    def pause_cruise(self) -> Dict:
+        """紧急悬停 / 中止巡航（/api/pause_cruise）。保留航点与进度，不返航。"""
+        return self._post("/api/pause_cruise")
+
+    def resume_cruise(self) -> Dict:
+        """重启巡航（/api/resume_cruise）。前置: cruisePaused==true。"""
+        return self._post("/api/resume_cruise")
 
     # ---- 手动操控 ----
 
     def takeoff_hover(self) -> Dict:
+        """起飞并悬停（/api/takeoff_hover）。前置: IDLE 且 SDK 已激活。"""
         return self._post("/api/takeoff_hover")
 
     def manual_climb(self, delta: float) -> Dict:
+        """升降（/api/manual action=climb）。正升负降，单位米。前置: HOVERING。"""
         return self._post("/api/manual", {"action": "climb", "value": delta})
 
     def manual_move_left(self, distance: float) -> Dict:
+        """左移（/api/manual action=move_left）。单位米。前置: HOVERING。"""
         return self._post("/api/manual", {"action": "move_left", "value": distance})
 
     def manual_move_right(self, distance: float) -> Dict:
+        """右移（/api/manual action=move_right）。单位米。前置: HOVERING。"""
         return self._post("/api/manual", {"action": "move_right", "value": distance})
 
     def manual_rotate(self, degrees: float) -> Dict:
+        """旋转（/api/manual action=rotate）。正右负左，单位度。前置: HOVERING。"""
         return self._post("/api/manual", {"action": "rotate", "value": degrees})
 
-    def manual_move_forward(self, distance: float) -> Dict:
-        return self._post("/api/manual", {"action": "move_forward", "value": distance})
+    # ---- 云台 / 相机（仅巡航中可用 cruiseActive==true） ----
 
-    def manual_move_backward(self, distance: float) -> Dict:
-        return self._post("/api/manual", {"action": "move_backward", "value": distance})
+    def gimbal(self, action: str, step: float = 7.5) -> Dict:
+        """云台控制（/api/gimbal）。
 
-    # ---- 云台 / 相机 ----
-
-    def gimbal_rotate(self, pitch: float = 0.0, roll: float = 0.0, yaw: float = 0.0) -> Dict:
-        """设置云台姿态（绝对角度，度）"""
-        self._gimbal = {"pitch": float(pitch), "roll": float(roll), "yaw": float(yaw)}
-        return self._post("/api/gimbal", {"pitch": pitch, "roll": roll, "yaw": yaw})
+        action ∈ {pitch_up, pitch_down, yaw_left, yaw_right, look_down, level}；
+        step 单步角度（度），范围 0.5~180，缺省 7.5。
+        """
+        return self._post("/api/gimbal", {"action": action, "step": step})
 
     def gimbal_velocity(self, vpitch: float = 0.0, vroll: float = 0.0, vyaw: float = 0.0,
                         duration: float = 1.0) -> Dict:
-        """云台 3DOF 角速度向量（°/s）→ 折算为角度增量，叠加当前姿态后走 /api/gimbal 绝对角度下发。
+        """云台 3DOF 角速度向量（°/s）→ 折算为总角度后走 /api/gimbal 步进下发（离散近似）。
 
-        vpitch/vyaw：俯仰/偏航角速度（°/s）；duration：持续秒数。角度增量 = 角速度 × duration。
-        vroll（横滚）M3E 云台一般不支持，忽略。
+        vpitch/vyaw：俯仰/偏航角速度（°/s，正 = 抬头/右转）；duration：持续秒数。
+        总角度 = 角速度 × duration，映射到 step 步进动作（pitch_up/down、yaw_left/right）。
+        vroll（横滚）API 不支持，忽略。
 
-        注意：当前为「角速度→角度」离散近似，客户端跟踪当前姿态（初始假设 0°）；
-        真正连续云台速度控制需 APK 新增 /api/gimbal/velocity（KeyGimbalSpeed）。
+        注意：step 上限 180°、下限 0.5°；且 /api/gimbal 仅巡航中可用（cruiseActive==true）。
         """
         duration = max(float(duration), 0.0)
-        dpitch = float(vpitch) * duration
-        dyaw = float(vyaw) * duration
+        dpitch = float(vpitch) * duration  # 度
+        dyaw = float(vyaw) * duration      # 度
         ignored = ""
         if abs(float(vroll)) > 1e-6:
-            ignored = " [已忽略 vroll：M3E 云台不支持横滚角速度]"
-        target = {
-            "pitch": self._gimbal.get("pitch", 0.0) + dpitch,
-            "roll": self._gimbal.get("roll", 0.0),
-            "yaw": self._gimbal.get("yaw", 0.0) + dyaw,
-        }
-        result = self.gimbal_rotate(**target)
-        base = result.get("message", "") if isinstance(result, dict) else ""
-        result["message"] = f"角速度→角度近似（{duration}s）{ignored}" + (f" | {base}" if base else "")
-        return result
-
-    def camera_capture(self) -> Dict:
-        """触发单张拍照"""
-        return self._post("/api/camera/capture")
-
-    def camera_zoom(self, factor: float = 1.0) -> Dict:
-        """设置相机变焦倍率"""
-        return self._post("/api/camera/zoom", {"factor": factor})
-
-    def move_relative(self, dx: float = 0.0, dy: float = 0.0, dz: float = 0.0, dyaw: float = 0.0) -> Dict:
-        """机体系相对移动（需悬停状态）。dx 前后(前+)、dy 左右(右+)、dz 上下(上+)、dyaw 偏航(度)。
-        逐轴映射到 /api/manual；多轴分量按 上下→旋转→前后→左右 顺序依次下发。"""
-        moves = []
-        if abs(dz) > 1e-6:
-            moves.append(("up" if dz > 0 else "down", self.manual_climb(dz)))
+            ignored = " [已忽略 vroll：API 不支持云台横滚]"
+        results = []
+        if abs(dpitch) > 1e-6:
+            action = "pitch_up" if dpitch > 0 else "pitch_down"
+            step = min(180.0, max(0.5, abs(dpitch)))
+            results.append((action, self.gimbal(action, step)))
         if abs(dyaw) > 1e-6:
-            moves.append(("rotate", self.manual_rotate(dyaw)))
-        if abs(dx) > 1e-6:
-            moves.append(("forward" if dx > 0 else "backward",
-                          self.manual_move_forward(dx) if dx > 0 else self.manual_move_backward(-dx)))
-        if abs(dy) > 1e-6:
-            moves.append(("right" if dy > 0 else "left",
-                          self.manual_move_right(dy) if dy > 0 else self.manual_move_left(-dy)))
-        if not moves:
-            return {"success": False, "message": "没有非零移动分量"}
-        ok = all(m[1].get("success") is not False for m in moves)
+            action = "yaw_right" if dyaw > 0 else "yaw_left"
+            step = min(180.0, max(0.5, abs(dyaw)))
+            results.append((action, self.gimbal(action, step)))
+        if not results:
+            return {"success": False, "message": "没有非零云台分量"}
+        ok = all(r[1].get("success") is not False for r in results)
         return {
             "success": ok,
-            "message": " + ".join(f"{name}" for name, _ in moves),
-            "moves": [{"axis": name, **v} for name, v in moves],
+            "message": f"角速度→步进近似（{duration}s）{ignored} | " + " + ".join(a for a, _ in results),
+            "moves": [{"action": a, **v} for a, v in results],
         }
+
+    def gimbal_reset(self) -> Dict:
+        """云台回中（平视）：对应 /api/gimbal {action:"level"}，仅巡航中可用。"""
+        result = self.gimbal("level")
+        base = result.get("message", "") if isinstance(result, dict) else ""
+        result["message"] = "云台回中（平视）" + (f" | {base}" if base else "")
+        return result
+
+    def camera(self, action: str) -> Dict:
+        """相机控制（/api/camera）。action ∈ {photo, start_record, stop_record, zoom_in, zoom_out}。"""
+        return self._post("/api/camera", {"action": action})
+
+    def camera_capture(self) -> Dict:
+        """触发单张拍照（/api/camera action=photo），仅巡航中可用。"""
+        return self.camera("photo")
+
+    # ---- 速度向量（离散近似，映射到 /api/manual，需 HOVERING） ----
 
     def move_velocity(self, vx: float = 0.0, vy: float = 0.0, vz: float = 0.0,
                       wx: float = 0.0, wy: float = 0.0, wz: float = 0.0,
                       duration: float = 1.0) -> Dict:
-        """机体系 6DOF 速度向量（twist）→ 折算为相对位移，走 /api/manual 离散下发。
+        """机体系 6DOF 速度向量（twist）→ 折算为相对位移后走 /api/manual 离散下发。
 
-        vx/vy/vz：前后/左右/上下 线速度 (m/s)；wz：偏航角速度 (rad/s)；
-        duration：持续秒数。位移 = 速度 × duration。
-        wx/wy（滚转/俯仰角速度）四旋翼位姿模式下不可独立控制，忽略。
+        vy/vz/wz：左右/上下/偏航 生效（位移 = 速度 × duration；wz 弧度→度）。
+        vx（前后）API v4.0 无移动端点、wx/wy（滚转/俯仰角速度）不可独立控制 → 忽略。
 
-        注意：当前为「速度→位移」近似，非真正连续速度控制；
-        真正连续速度控制需 APK 新增 /api/velocity（VirtualStick）。
+        注意：/api/manual 仅 HOVERING 悬停态可用，且为「速度→位移」离散近似。
         """
         duration = max(float(duration), 0.0)
-        dx = float(vx) * duration
-        dy = float(vy) * duration
-        dz = float(vz) * duration
-        dyaw = math.degrees(float(wz) * duration)  # rad → deg
-        ignored = ""
+        dy = float(vy) * duration              # 右为正
+        dz = float(vz) * duration              # 上为正
+        dyaw = math.degrees(float(wz) * duration)  # rad → deg，右转为正
+        ignored = []
+        if abs(float(vx)) > 1e-6:
+            ignored.append("vx（前后，API v4.0 无端点）")
         if abs(float(wx)) > 1e-6 or abs(float(wy)) > 1e-6:
-            ignored = " [已忽略 wx/wy：四旋翼无法独立控制滚转/俯仰角速度]"
-        result = self.move_relative(dx=dx, dy=dy, dz=dz, dyaw=dyaw)
-        base = result.get("message", "") if isinstance(result, dict) else ""
-        result["message"] = f"速度→位移近似（{duration}s）{ignored}" + (f" | {base}" if base else "")
-        return result
+            ignored.append("wx/wy（滚转/俯仰角速度不可独立控制）")
+        moves = []
+        if abs(dz) > 1e-6:
+            moves.append(("climb", self.manual_climb(dz)))
+        if abs(dyaw) > 1e-6:
+            moves.append(("rotate", self.manual_rotate(dyaw)))
+        if abs(dy) > 1e-6:
+            if dy > 0:
+                moves.append(("move_right", self.manual_move_right(dy)))
+            else:
+                moves.append(("move_left", self.manual_move_left(-dy)))
+        if not moves:
+            return {"success": False, "message": "没有非零移动分量"}
+        ok = all(m[1].get("success") is not False for m in moves)
+        suffix = f" [已忽略: {', '.join(ignored)}]" if ignored else ""
+        return {
+            "success": ok,
+            "message": f"速度→位移近似（{duration}s）{suffix} | " + " + ".join(n for n, _ in moves),
+            "moves": [{"axis": n, **v} for n, v in moves],
+        }
 
     def rotate_velocity(self, direction: float = 1.0, angular_velocity: float = 0.5,
                         duration: float = 1.0) -> Dict:
         """旋转（方向·角速度·持续时间）→ dyaw 折算后走 /api/manual rotate。
 
-        direction：1 = 左转，-1 = 右转；angular_velocity：偏航角速度 (rad/s，取绝对值)；
-        duration：持续秒数。dyaw(度) = direction × degrees(|angular_velocity| × duration)。
+        direction：1 = 右转（顺时针），-1 = 左转（对齐 /api/manual rotate 正右负左）；
+        angular_velocity：偏航角速度 (rad/s，取绝对值)；duration：持续秒数。
+        dyaw(度) = direction × degrees(|angular_velocity| × duration)。
         """
         dyaw = float(direction) * math.degrees(abs(float(angular_velocity))) * max(float(duration), 0.0)
         if abs(dyaw) < 1e-6:
             return {"success": False, "message": "没有非零旋转分量"}
         result = self.manual_rotate(dyaw)
-        result["message"] = f"旋转 dyaw={dyaw:.1f}°（{'左' if dyaw > 0 else '右'}转）"
-        return result
-
-    def gimbal_reset(self, pitch: float = 0.0, roll: float = 0.0, yaw: float = 0.0) -> Dict:
-        """云台回中：恢复到指定目标姿态（默认全 0 = 机头正前方水平）。
-
-        gimbal_rotate 内部会同步回写 self._gimbal 跟踪状态，后续增量旋转基准不漂移。
-        """
-        result = self.gimbal_rotate(pitch=pitch, roll=roll, yaw=yaw)
-        result["message"] = f"云台回中 → pitch={pitch}° roll={roll}° yaw={yaw}°"
+        result["message"] = f"旋转 dyaw={dyaw:.1f}°（{'右' if dyaw > 0 else '左'}转）"
         return result
 
     # ---- 内部 ----
@@ -354,20 +412,18 @@ class AtlasRegistrar:
     """
     向 Atlas 注册 drone_bridge 能力和遥测数据。
 
-    当前为简化实现：直接将遥测写入本地状态文件，
-    供 executor / liaison 通过 Atlas gRPC 查询。
-    完整版需引入 robonix-api 的 Primitive 基类。
+    当前为简化实现：仅探测 Atlas gRPC 是否可达。
+    能力声明与调度由 driver.py（Primitive + @provider.mcp）负责，
+    由 executor 加载，不经过本类。
     """
 
     def __init__(self, endpoint: str = ATLAS_ENDPOINT):
         self.endpoint = endpoint
         self._registered = False
-        self._primitive_id = "drone_bridge"
 
     def register(self) -> bool:
-        """尝试注册到 Atlas（如不可用则降级为 standalone 模式）"""
+        """尝试连接 Atlas（如不可用则降级为 standalone 模式）"""
         try:
-            # 尝试连接 Atlas gRPC
             import grpc
             channel = grpc.insecure_channel(self.endpoint)
             grpc.channel_ready_future(channel).result(timeout=3)
@@ -387,17 +443,16 @@ class AtlasRegistrar:
 
 
 # ---------------------------------------------------------------------------
-# 命令处理器（供 Robonix executor 调用）
+# 命令处理器（供 standalone REPL 调用）
 # ---------------------------------------------------------------------------
 
 class CommandHandler:
-    """将 Robonix 能力调用映射到 DroneClient HTTP 请求"""
+    """将 11 个原语能力映射到 DroneClient 方法（独立测试用）"""
 
     def __init__(self, client: DroneClient):
         self.client = client
 
     def handle(self, capability: str, params: Optional[Dict] = None) -> Dict:
-        """分发能力调用"""
         params = params or {}
         method = CAPABILITY_MAP.get(capability)
         if method is None:
@@ -410,104 +465,21 @@ class CommandHandler:
 
 
 def _cmd_takeoff(client: DroneClient, p: Dict) -> Dict:
-    return client.takeoff_hover()
+    alt = float(p.get("altitude", 0.0) or 0.0)
+    if alt <= 0:
+        alt = 3.0
+    return client.start_mission(climb=alt, move=0.0, yaw=0.0)
 
 def _cmd_land(client: DroneClient, p: Dict) -> Dict:
-    return client.go_home()
+    return client.land()
 
 def _cmd_hover(client: DroneClient, p: Dict) -> Dict:
     return client.stop()
 
-def _cmd_start_mission(client: DroneClient, p: Dict) -> Dict:
-    return client.start_mission(
-        climb=float(p.get("climb", p.get("climbHeight", 1.0))),
-        move=float(p.get("move", p.get("moveDistance", 0.5))),
-        yaw=float(p.get("yaw", p.get("yawAngle", 0.0))),
-    )
-
-def _cmd_cruise(client: DroneClient, p: Dict) -> Dict:
-    return client.start_cruise()
-
-def _cmd_add_waypoint(client: DroneClient, p: Dict) -> Dict:
-    return client.add_waypoint(
-        lat=float(p["latitude"]),
-        lng=float(p["longitude"]),
-        alt=float(p.get("altitude", 5.0)),
-    )
-
-def _cmd_clear_waypoints(client: DroneClient, p: Dict) -> Dict:
-    return client.clear_waypoints()
-
-def _cmd_go_home(client: DroneClient, p: Dict) -> Dict:
+def _cmd_rth(client: DroneClient, p: Dict) -> Dict:
     return client.go_home()
 
-def _cmd_rotate_velocity(client: DroneClient, p: Dict) -> Dict:
-    """旋转（方向·角速度·持续时间）"""
-    return client.rotate_velocity(
-        direction=float(p.get("direction", 1.0)),
-        angular_velocity=float(p.get("angular_velocity", 0.5)),
-        duration=float(p.get("duration", 1.0)),
-    )
-
-def _cmd_switch_mode(client: DroneClient, p: Dict) -> Dict:
-    return client.switch_mode(p.get("mode", "STANDBY"))
-
-def _cmd_get_status(client: DroneClient, p: Dict) -> Dict:
-    return client.get_status()
-
-def _cmd_reset(client: DroneClient, p: Dict) -> Dict:
-    return client.reset()
-
-def _cmd_land(client: DroneClient, p: Dict) -> Dict:
-    """原地降落"""
-    return client.land()
-
-def _cmd_move_ee(client: DroneClient, p: Dict) -> Dict:
-    """飞行至目标 GPS 位姿（PoseStamped → add_waypoint + start_cruise）"""
-    lat = float(p["latitude"])
-    lng = float(p["longitude"])
-    alt = float(p.get("altitude", 5.0))
-    # 清空旧航点 → 添加新航点 → 启动巡航
-    client.clear_waypoints()
-    result = client.add_waypoint(lat, lng, alt)
-    if result.get("success") is False:
-        return result
-    return client.start_cruise()
-
-def _cmd_state_position(client: DroneClient, p: Dict) -> Dict:
-    """读取当前位置（从 status 提取 GPS + 高度 + 朝向）"""
-    status = client.get_status()
-    if "error" in status:
-        return status
-    # 从遥测数据中提取位置相关字段
-    return {
-        "latitude": status.get("latitude"),
-        "longitude": status.get("longitude"),
-        "altitude": status.get("altitude", 0.0),
-        "heading": status.get("heading", 0.0),
-    }
-
-def _cmd_state_battery(client: DroneClient, p: Dict) -> Dict:
-    """读取电池电量"""
-    status = client.get_status()
-    if "error" in status:
-        return status
-    return {
-        "percent": status.get("batteryPercent", 0.0),
-        "voltage": status.get("batteryVoltage", 0.0),
-    }
-
-def _cmd_move_relative(client: DroneClient, p: Dict) -> Dict:
-    """机体系相对移动"""
-    return client.move_relative(
-        dx=float(p.get("dx", 0.0)),
-        dy=float(p.get("dy", 0.0)),
-        dz=float(p.get("dz", 0.0)),
-        dyaw=float(p.get("dyaw", 0.0)),
-    )
-
 def _cmd_move_velocity(client: DroneClient, p: Dict) -> Dict:
-    """机体系 6DOF 速度向量（twist）"""
     return client.move_velocity(
         vx=float(p.get("vx", 0.0)),
         vy=float(p.get("vy", 0.0)),
@@ -518,16 +490,14 @@ def _cmd_move_velocity(client: DroneClient, p: Dict) -> Dict:
         duration=float(p.get("duration", 1.0)),
     )
 
-def _cmd_gimbal_rotate(client: DroneClient, p: Dict) -> Dict:
-    """设置云台姿态"""
-    return client.gimbal_rotate(
-        pitch=float(p.get("pitch", 0.0)),
-        roll=float(p.get("roll", 0.0)),
-        yaw=float(p.get("yaw", 0.0)),
+def _cmd_rotate_velocity(client: DroneClient, p: Dict) -> Dict:
+    return client.rotate_velocity(
+        direction=float(p.get("direction", 1.0)),
+        angular_velocity=float(p.get("angular_velocity", 0.5)),
+        duration=float(p.get("duration", 1.0)),
     )
 
 def _cmd_gimbal_velocity(client: DroneClient, p: Dict) -> Dict:
-    """云台 3DOF 角速度向量（°/s）"""
     return client.gimbal_velocity(
         vpitch=float(p.get("vpitch", 0.0)),
         vroll=float(p.get("vroll", 0.0)),
@@ -536,15 +506,12 @@ def _cmd_gimbal_velocity(client: DroneClient, p: Dict) -> Dict:
     )
 
 def _cmd_gimbal_reset(client: DroneClient, p: Dict) -> Dict:
-    """云台回中（默认全 0 = 机头正前方）"""
-    return client.gimbal_reset(
-        pitch=float(p.get("pitch", 0.0)),
-        roll=float(p.get("roll", 0.0)),
-        yaw=float(p.get("yaw", 0.0)),
-    )
+    return client.gimbal_reset()
+
+def _cmd_camera_capture(client: DroneClient, p: Dict) -> Dict:
+    return client.camera_capture()
 
 def _cmd_camera_video(client: DroneClient, p: Dict) -> Dict:
-    """获取视频流 URL（方案 A：调用方自行拉流）"""
     return {
         "success": True,
         "video_url": client.get_video_url(),
@@ -554,34 +521,24 @@ def _cmd_camera_video(client: DroneClient, p: Dict) -> Dict:
         "note": "用浏览器 / curl / ffmpeg 拉流即可",
     }
 
-def _cmd_camera_capture(client: DroneClient, p: Dict) -> Dict:
-    """触发拍照"""
-    return client.camera_capture()
-
-def _cmd_camera_zoom(client: DroneClient, p: Dict) -> Dict:
-    """设置变焦"""
-    return client.camera_zoom(factor=float(p.get("factor", 1.0)))
+def _cmd_state(client: DroneClient, p: Dict) -> Dict:
+    return client.get_state()
 
 CAPABILITY_MAP = {
     # ── 运动控制 ──
     "robonix/primitive/drone/takeoff":          _cmd_takeoff,
     "robonix/primitive/drone/land":             _cmd_land,
-    "robonix/primitive/drone/move_ee":          _cmd_move_ee,
-    "robonix/primitive/drone/move_relative":    _cmd_move_relative,
     "robonix/primitive/drone/move_velocity":    _cmd_move_velocity,
     "robonix/primitive/drone/rotate_velocity":  _cmd_rotate_velocity,
     "robonix/primitive/drone/hover":            _cmd_hover,
-    "robonix/primitive/drone/rth":              _cmd_go_home,
+    "robonix/primitive/drone/rth":              _cmd_rth,
     # ── 云台 / 相机 ──
-    "robonix/primitive/drone/gimbal_rotate":    _cmd_gimbal_rotate,
     "robonix/primitive/drone/gimbal_velocity":  _cmd_gimbal_velocity,
     "robonix/primitive/drone/gimbal_reset":     _cmd_gimbal_reset,
     "robonix/primitive/drone/camera_capture":   _cmd_camera_capture,
     "robonix/primitive/drone/camera_video":     _cmd_camera_video,
-    "robonix/primitive/drone/camera_zoom":      _cmd_camera_zoom,
     # ── 状态查询 ──
-    "robonix/primitive/drone/state_position":   _cmd_state_position,
-    "robonix/primitive/drone/state_battery":    _cmd_state_battery,
+    "robonix/primitive/drone/state":            _cmd_state,
 }
 
 
@@ -596,23 +553,18 @@ def _repl_loop(client: DroneClient):
     print(f"  目标: {client.base}")
     print("=" * 60)
     print("\n命令:")
-    print("  takeoff [alt]    — 起飞悬停（默认 3m）")
-    print("  land             — 原地降落")
-    print("  move_ee <lat> <lng> [alt] — 飞到目标GPS点")
-    print("  mv <dx> <dy> <dz> [dyaw] — 相对移动")
-    print("  vel <vx> <vy> <vz> [wz] [dur] — 6DOF 速度向量（前后/左右/上下 + 偏航，持续秒数）")
-    print("  rv [dir] [wz] [dur] — 旋转（1=左/-1=右，rad/s，秒；默认 左 0.5rad/s×1s）")
-    print("  gimbal <pitch> [roll] [yaw] — 云台姿态")
-    print("  gv <vpitch> [vyaw] [dur] — 云台角速度向量（俯仰/偏航 °/s，持续秒数）")
-    print("  greset [p] [r] [y] — 云台回中（默认全 0 = 机头正前方）")
+    print("  takeoff [alt]    — 起飞爬升至指定高度（默认 3m）")
+    print("  land             — 原地降落（API 无端点，返回失败）")
+    print("  hover            — 紧急悬停（/api/stop）")
+    print("  rth              — 返航降落（/api/gohome）")
+    print("  vel <vy> <vz> [wz] [dur] — 速度向量（左右/上下/偏航，m/s·rad/s，持续秒）")
+    print("  rv [dir] [wz] [dur] — 旋转（1=右/-1=左，rad/s，秒；默认 右 0.5rad/s×1s）")
+    print("  gv <vpitch> [vyaw] [dur] — 云台角速度（俯仰/偏航 °/s，持续秒）")
+    print("  greset           — 云台回中（平视 /api/gimbal level）")
     print("  video            — 获取视频流 URL")
-    print("  photo            — 拍照")
-    print("  zoom <factor>    — 变焦")
-    print("  hover            — 紧急悬停")
-    print("  rth              — 智能返航")
-    print("  pos              — 查询当前位置")
-    print("  bat              — 查询电量")
-    print("  status           — 查看完整状态")
+    print("  photo            — 拍照（/api/camera photo）")
+    print("  state            — 查询完整状态（status + GPS）")
+    print("  status           — 查看原始 /api/status")
     print("  q / quit         — 退出")
     print()
 
@@ -639,35 +591,19 @@ def _repl_loop(client: DroneClient):
             print(json.dumps(handler.handle("robonix/primitive/drone/takeoff", {"altitude": alt}), ensure_ascii=False))
         elif cmd == "land":
             print(json.dumps(handler.handle("robonix/primitive/drone/land"), ensure_ascii=False))
-        elif cmd == "move_ee":
-            if len(parts) < 3:
-                print("用法: move_ee <lat> <lng> [alt]")
-                continue
-            lat, lng = float(parts[1]), float(parts[2])
-            alt = float(parts[3]) if len(parts) > 3 else 5.0
-            print(json.dumps(handler.handle("robonix/primitive/drone/move_ee", {"latitude": lat, "longitude": lng, "altitude": alt}), ensure_ascii=False))
         elif cmd == "hover":
             print(json.dumps(handler.handle("robonix/primitive/drone/hover"), ensure_ascii=False))
         elif cmd == "rth":
             print(json.dumps(handler.handle("robonix/primitive/drone/rth"), ensure_ascii=False))
-        elif cmd == "pos":
-            print(json.dumps(handler.handle("robonix/primitive/drone/state_position"), ensure_ascii=False))
-        elif cmd == "bat":
-            print(json.dumps(handler.handle("robonix/primitive/drone/state_battery"), ensure_ascii=False))
-        elif cmd == "mv":
-            dx = float(parts[1]) if len(parts) > 1 else 0.0
-            dy = float(parts[2]) if len(parts) > 2 else 0.0
-            dz = float(parts[3]) if len(parts) > 3 else 0.0
-            dyaw = float(parts[4]) if len(parts) > 4 else 0.0
-            print(json.dumps(handler.handle("robonix/primitive/drone/move_relative", {"dx": dx, "dy": dy, "dz": dz, "dyaw": dyaw}), ensure_ascii=False))
+        elif cmd == "state":
+            print(json.dumps(handler.handle("robonix/primitive/drone/state"), ensure_ascii=False))
         elif cmd in ("vel", "velocity"):
-            vx = float(parts[1]) if len(parts) > 1 else 0.0
-            vy = float(parts[2]) if len(parts) > 2 else 0.0
-            vz = float(parts[3]) if len(parts) > 3 else 0.0
-            wz = float(parts[4]) if len(parts) > 4 else 0.0
-            dur = float(parts[5]) if len(parts) > 5 else 1.0
+            vy = float(parts[1]) if len(parts) > 1 else 0.0
+            vz = float(parts[2]) if len(parts) > 2 else 0.0
+            wz = float(parts[3]) if len(parts) > 3 else 0.0
+            dur = float(parts[4]) if len(parts) > 4 else 1.0
             print(json.dumps(handler.handle("robonix/primitive/drone/move_velocity",
-                  {"vx": vx, "vy": vy, "vz": vz, "wz": wz, "duration": dur}), ensure_ascii=False))
+                  {"vy": vy, "vz": vz, "wz": wz, "duration": dur}), ensure_ascii=False))
         elif cmd in ("rv", "rotate_velocity"):
             direction = float(parts[1]) if len(parts) > 1 else 1.0
             wz = float(parts[2]) if len(parts) > 2 else 0.5
@@ -675,28 +611,17 @@ def _repl_loop(client: DroneClient):
             print(json.dumps(handler.handle("robonix/primitive/drone/rotate_velocity",
                   {"direction": direction, "angular_velocity": wz, "duration": dur}), ensure_ascii=False))
         elif cmd in ("greset", "gimbal_reset"):
-            pitch = float(parts[1]) if len(parts) > 1 else 0.0
-            roll = float(parts[2]) if len(parts) > 2 else 0.0
-            yaw = float(parts[3]) if len(parts) > 3 else 0.0
-            print(json.dumps(handler.handle("robonix/primitive/drone/gimbal_reset", {"pitch": pitch, "roll": roll, "yaw": yaw}), ensure_ascii=False))
-        elif cmd == "video":
-            print(json.dumps(handler.handle("robonix/primitive/drone/camera_video"), ensure_ascii=False))
-        elif cmd == "gimbal":
-            pitch = float(parts[1]) if len(parts) > 1 else 0.0
-            roll = float(parts[2]) if len(parts) > 2 else 0.0
-            yaw = float(parts[3]) if len(parts) > 3 else 0.0
-            print(json.dumps(handler.handle("robonix/primitive/drone/gimbal_rotate", {"pitch": pitch, "roll": roll, "yaw": yaw}), ensure_ascii=False))
+            print(json.dumps(handler.handle("robonix/primitive/drone/gimbal_reset"), ensure_ascii=False))
         elif cmd in ("gv", "gimbal_velocity"):
             vpitch = float(parts[1]) if len(parts) > 1 else 0.0
             vyaw = float(parts[2]) if len(parts) > 2 else 0.0
             dur = float(parts[3]) if len(parts) > 3 else 1.0
             print(json.dumps(handler.handle("robonix/primitive/drone/gimbal_velocity",
                   {"vpitch": vpitch, "vyaw": vyaw, "duration": dur}), ensure_ascii=False))
+        elif cmd == "video":
+            print(json.dumps(handler.handle("robonix/primitive/drone/camera_video"), ensure_ascii=False))
         elif cmd == "photo":
             print(json.dumps(handler.handle("robonix/primitive/drone/camera_capture"), ensure_ascii=False))
-        elif cmd == "zoom":
-            factor = float(parts[1]) if len(parts) > 1 else 1.0
-            print(json.dumps(handler.handle("robonix/primitive/drone/camera_zoom", {"factor": factor}), ensure_ascii=False))
         else:
             print(f"未知命令: {cmd}")
 
@@ -742,13 +667,11 @@ def main():
         log.info("🚀 drone_bridge 运行中（Robonix 集成模式）")
         poller.start()
 
-        # 在遥测更新时上报到 Atlas（简化版：通过文件）
         def on_telemetry(status):
             pass  # 完整集成时通过 gRPC stream 上报
 
         poller.on_update(on_telemetry)
 
-        # 等待信号
         stop_event = threading.Event()
         signal.signal(signal.SIGINT, lambda *_: stop_event.set())
         signal.signal(signal.SIGTERM, lambda *_: stop_event.set())
