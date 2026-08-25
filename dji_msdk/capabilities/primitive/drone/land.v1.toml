@@ -1,0 +1,10 @@
+# 原地降落。
+[contract]
+id      = "robonix/primitive/drone/land"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/Land.srv"
+description = "原地降落。"
+
+[mode]
+type = "rpc"

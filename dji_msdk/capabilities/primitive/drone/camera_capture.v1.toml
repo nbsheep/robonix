@@ -1,0 +1,10 @@
+# 触发单张拍照。
+[contract]
+id      = "robonix/primitive/drone/camera_capture"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/CameraCapture.srv"
+description = "触发单张拍照。"
+
+[mode]
+type = "rpc"

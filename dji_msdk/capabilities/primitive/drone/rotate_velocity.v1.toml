@@ -1,0 +1,10 @@
+# 定轴旋转（方向、角速度、持续时间）。
+[contract]
+id      = "robonix/primitive/drone/rotate_velocity"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/RotateVelocity.srv"
+description = "定轴旋转（方向、角速度、持续时间）。"
+
+[mode]
+type = "rpc"

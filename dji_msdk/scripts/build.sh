@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# dji_msdk 构建脚本
+# 运行 rbnx codegen 从 TOML 合约 + IDL 生成 proto stub（drone_pb2, std_msgs_pb2），
+# 并加 --mcp 生成 MCP dataclass（robonix_mcp_types/{drone_mcp,std_msgs_mcp}）。
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
+
+echo "[dji_msdk] rbnx codegen..."
+
+if command -v rbnx &>/dev/null; then
+    cd "$PROJECT_DIR"
+    rbnx codegen -p . --out-dir rbnx-build/codegen --mcp
+    echo "[dji_msdk] codegen 完成"
+else
+    echo "[dji_msdk] ⚠ rbnx 未安装，跳过 codegen"
+    echo "                 安装: cargo install --git https://github.com/syswonder/robonix rbnx"
+    mkdir -p "$PROJECT_DIR/rbnx-build"
+    touch "$PROJECT_DIR/rbnx-build/.rbnx-built"
+fi

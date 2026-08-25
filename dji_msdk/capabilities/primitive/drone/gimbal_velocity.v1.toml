@@ -1,0 +1,10 @@
+# 云台 3 轴角速度控制。
+[contract]
+id      = "robonix/primitive/drone/gimbal_velocity"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/GimbalVelocity.srv"
+description = "云台 3 轴角速度控制。"
+
+[mode]
+type = "rpc"

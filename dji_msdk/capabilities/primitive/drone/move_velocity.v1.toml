@@ -1,0 +1,10 @@
+# 机体系 6 自由度速度向量控制（twist）。
+[contract]
+id      = "robonix/primitive/drone/move_velocity"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/MoveVelocity.srv"
+description = "机体系 6 自由度速度向量控制（twist）。"
+
+[mode]
+type = "rpc"

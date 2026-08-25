@@ -1,0 +1,3 @@
+float32 altitude  # 起飞高度（米），默认飞控内置高度
+---
+std_msgs/String status

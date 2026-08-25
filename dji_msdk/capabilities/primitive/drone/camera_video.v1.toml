@@ -1,0 +1,10 @@
+# 获取实时视频流。
+[contract]
+id      = "robonix/primitive/drone/camera_video"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/CameraVideo.srv"
+description = "获取实时视频流。"
+
+[mode]
+type = "rpc"

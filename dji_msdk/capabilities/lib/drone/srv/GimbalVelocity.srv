@@ -1,0 +1,6 @@
+float64 vpitch    # 云台俯仰角速度（°/s），正 = 抬头向上
+float64 vroll     # 云台横滚角速度（°/s），忽略
+float64 vyaw      # 云台偏航角速度（°/s），正 = 向右
+float64 duration  # 持续秒数
+---
+std_msgs/String status

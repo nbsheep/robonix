@@ -1,0 +1,41 @@
+manifestVersion: 1
+
+package:
+  name: com.robonix.dji_msdk
+  version: 1.0.0
+  vendor: robonix
+  description: DJI 无人机桥接原语 — HTTP API 连接 RC Pro（APK 内部封装 DJI Mobile SDK v5），飞控、云台、相机、遥测
+  license: MulanPSL-2.0
+
+build: bash scripts/build.sh
+
+start: bash scripts/start.sh
+
+stop: |
+  pkill -TERM -f "[p]ython3 -m dji_msdk.driver" 2>/dev/null || true
+  sleep 1
+  pkill -KILL -f "[p]ython3 -m dji_msdk.driver" 2>/dev/null || true
+
+capabilities:
+  - name: robonix/primitive/drone/driver
+  - name: robonix/primitive/drone/takeoff
+  - name: robonix/primitive/drone/land
+  - name: robonix/primitive/drone/move_velocity
+  - name: robonix/primitive/drone/rotate_velocity
+  - name: robonix/primitive/drone/hover
+  - name: robonix/primitive/drone/rth
+  - name: robonix/primitive/drone/gimbal_velocity
+  - name: robonix/primitive/drone/gimbal_reset
+  - name: robonix/primitive/drone/camera_capture
+  - name: robonix/primitive/drone/camera_video
+  - name: robonix/primitive/drone/state
+
+config:
+  rc_pro_ip:
+    description: RC Pro IP 地址 (运行 DJI 桥接 APK)
+    type: string
+    default: 10.225.57.15
+  rc_pro_port:
+    description: RC Pro WebServer 端口
+    type: integer
+    default: 8080

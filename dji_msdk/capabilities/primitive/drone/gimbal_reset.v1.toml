@@ -1,0 +1,10 @@
+# 云台回中（平视）。
+[contract]
+id      = "robonix/primitive/drone/gimbal_reset"
+version = "1"
+kind    = "primitive"
+idl     = "drone/srv/GimbalReset.srv"
+description = "云台回中（平视）。"
+
+[mode]
+type = "rpc"
