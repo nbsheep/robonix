@@ -184,7 +184,7 @@ def state(_req: drone_mcp.State_Request) -> drone_mcp.State_Response:
 def init(config: dict):
     """启动时初始化 HTTP 客户端并验证 RC Pro 连接"""
     global _client
-    rc_ip = config.get("rc_pro_ip") or os.environ.get("RC_PRO_IP", "192.168.1.100")
+    rc_ip = config.get("rc_pro_ip") or os.environ.get("RC_PRO_IP", "10.225.57.15")
     rc_port = int(config.get("rc_pro_port") or os.environ.get("RC_PRO_PORT", "8080"))
     _client = DroneClient(rc_ip, rc_port)
 
