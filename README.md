@@ -348,6 +348,40 @@ drone> land            # 原地降落（API 无端点，返回失败）
 
 ---
 
+### 方式 5: rbnx call / rbnx ask（直接原语调用 + 自然语言）
+
+> ⚠️ 这一节是**「clone 后最终要达成」的目标**：让你能用 rbnx CLI 直接、确定地控制无人机。
+> **要先满足：** 已经把本项目部署成 RoboNIX 原语（上面部署 1~8 步），且 `rbnx boot` 正在跑。
+
+方式 3 的 `rbnx chat`「对话控制」需要**先写 skill** 才能把自然语言映射到原语（见上面方式 2 的注意）。
+而 **`rbnx call`** 能**直接、确定地调用某个 drone 原语**，不写 skill 也能用，适合硬件验收 / 脚本化；**`rbnx ask`** 是一次性自然语言指令，借助 LLM 让 pilot 自己选能力。
+
+```bash
+# ① 看注册了哪些能力（应看到 drone_bridge [ACTIVE]，11 caps）
+rbnx caps | grep drone
+rbnx describe --provider drone_bridge
+
+# ② call —— 绕 LLM，直接调原语（无参、安全，先验证链路）
+rbnx call robonix/primitive/drone/state
+rbnx call robonix/primitive/drone/hover
+
+# ③ call —— 带参调用：config.spec 里声明的字段要写全，缺一个报 field required
+rbnx call robonix/primitive/drone/takeoff --args '{"altitude": 3.0}'                        # 起飞到 3m
+rbnx call robonix/primitive/drone/move_velocity \
+  --args '{"vx":0,"vy":1.0,"vz":0,"wx":0,"wy":0,"wz":0,"duration":2}'                       # 前进 1m/s × 2s
+
+# ④ ask —— 一次自然语言指令（走 LLM，pilot 自己规划）
+rbnx ask "让无人机起飞到 3 米并悬停"
+```
+
+- `rbnx call` 通用形式：`rbnx call <contract_id> [--provider drone_bridge] [--args '<json>'] [--server <ep>]`
+- `rbnx ask` 通用形式：`rbnx ask "<prompt>" [--server <ep>]`
+- 11 个原语清单、每个参数含义、调用判据，见 **`docs/primitive_calling_guide.md`**；
+  从零到能调出这些原语的全流程见 **`docs/从零开始_完整操作手册.md`**。
+- ⚠️ 户外实测时遵循操作手册安全顺序：`takeoff` → `vel`/`rv` → `gv`/`gimbal_reset`/`photo` → `hover`/`rth` 兜底。
+
+---
+
 ## API 完整参考
 
 所有接口基础 URL: `http://<RC_Pro_IP>:8080`
