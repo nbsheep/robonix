@@ -1,0 +1,8 @@
+# drone_fire_patrol 运行依赖（建议独立 conda 环境）
+# torch 体积大且取决于你的 CUDA 版本，单独装，例如：
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+ultralytics>=8.0
+opencv-python>=4.8
+numpy
+requests
+jinja2
