@@ -130,7 +130,7 @@ def main() -> int:
         client = None
         ok = False
         print("[drone] drone_bridge 未安装 → 以纯检测模式运行（云台/拍照/GPS 将跳过）。")
-        print(f"       真机测试需先准备 drone_bridge（见 docs/COLLEAGUE_SETUP.md），并 export DRONE_BRIDGE=<其目录>。")
+        print(f"       真机测试需先准备 drone_bridge（见 README.md），并 export DRONE_BRIDGE=<其目录>。")
 
     model = YOLO(WEIGHTS)
     fire_cls = int(model.names.get("fire", 1))  # D-Fire: 0=smoke, 1=fire
