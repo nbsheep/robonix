@@ -20,6 +20,75 @@
 
 <br />
 
+<br />
+
+> ## 本 Fork（nbsheep/robonix）—— 快速复现 / Quick Walkthrough
+>
+> 这是 [syswonder/robonix](https://github.com/syswonder/robonix) 的一个 fork，除官方 RoboNIX 系统外**额外加入**了两样东西：
+> 1. **`rbnx call`** —— 直接调用单个能力原语，绕过 LLM / Pilot，确定、可脚本化（官方没有）。
+> 2. **大疆 M3E 无人机接入** —— 一套 `drone_bridge` 原语（`takeoff` / `land` / `move_velocity` / `state` 等 11 个），工程在 companion 仓库里。
+>
+> **⚠️ 新手最容易踩的坑：** `git clone` 默认拿到的是 **`main`** 分支，而 **`main` 上没有 `rbnx call`**（`call` / `ask` 只在 `dev`）。请务必切到 `dev`。
+>
+> | 分支 | `rbnx call` / `ask` | 无人机原语 | 说明 |
+> |---|---|---|---|
+> | `main`（默认，clone 拿到） | ❌ | — | 落后/空态，**要切走** |
+> | `dev` | ✅ | — | **主线：RoboNIX OS + `rbnx call`** |
+> | `master` | ❌ | ✅ | 同事的无人机线（drone_bridge / UAVtest） |
+>
+> ### ① 克隆并切到 `dev`
+> ```bash
+> git clone https://github.com/nbsheep/robonix.git
+> cd robonix
+> git checkout dev
+> ```
+>
+> ### ② 构建（与官方一致）
+> ```bash
+> curl -LsSf https://astral.sh/uv/install.sh | sh
+> export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+> make install
+> ```
+>
+> ### ③ 用一个部署目录把 RoboNIX 跑起来
+> `rbnx call` / `ask` 需要 atlas + executor 在跑。最快是官方 Webots 仿真（无需硬件），或接入无人机后走你的部署目录：
+> ```bash
+> # 方式 A：官方 Webots 仿真（无硬件，先验证 call/ask 通）
+> cd examples/webots && rbnx build && rbnx boot
+> # 方式 B：接入 M3E 无人机后，在你的部署目录（见下方 ⑤）
+> cd ~/my-robot && rbnx boot
+> ```
+>
+> ### ④ 验证并使用 `rbnx call` / `rbnx ask`
+> ```bash
+> # 确认子命令存在（call / ask 要能打印出来）
+> rbnx --help | grep -E "call|ask"
+>
+> # ask：自然语言，走 LLM，体验式
+> rbnx ask "你现在能用哪些能力？"
+>
+> # call：绕过 LLM 直接调一个原语，确定、适合真实控制/硬件验收
+> rbnx call robonix/primitive/drone/state                 # 无参、安全，先验证链路
+> rbnx call robonix/primitive/drone/takeoff --args '{"altitude": 3.0}'
+> ```
+> - `rbnx call` 通用形式：`rbnx call <contract_id> [--provider <id>] [--args '<json>'] [--server <ep>]`
+> - `rbnx ask` 通用形式：`rbnx ask "<prompt>" [--server <ep>]`
+> - ⚠️ 带参调用要把该原语 `config.spec` 里的字段**写全**，缺一个会报 `field required`。
+>
+> ### ⑤ 可选项：接入大疆 M3E 无人机
+> 上面的 `rbnx call robonix/primitive/drone/*` 调的就是无人机原语。要让它们注册进 RoboNIX，得先部署 companion 工程 **`drone_bridge`**（UI / 驱动 / 11 个 drone 原语都在里面）：
+> ```bash
+> cp -r drone_bridge ~/my-robot/primitives/
+> cd ~/my-robot/primitives/drone_bridge
+> bash scripts/build.sh                       # rbnx codegen --mcp 生成 drone_mcp
+> nano ~/my-robot/robonix_manifest.yaml       # 把 rc_pro_ip 改成你的遥控器 IP
+> cd ~/my-robot && rbnx boot
+> rbnx caps | grep drone                      # 应看到 drone_bridge [ACTIVE] (11 caps)
+> ```
+> 完整原语清单、每个参数、调用判据，见 drone_bridge 工程里的 **`docs/从零开始_完整操作手册.md`**。
+>
+> 下方是官方 syswonder/robonix 的原始 README（系统介绍 / 架构 / Webots / 包模型等），对理解系统本身仍然有用。
+
 ## Robonix
 
 Robonix is an operating system for embodied intelligence. It explores how to
