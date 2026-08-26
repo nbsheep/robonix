@@ -36,7 +36,16 @@ if _DRONE_BRIDGE not in sys.path:
 
 import cv2  # noqa: E402
 from ultralytics import YOLO  # noqa: E402
-from drone_bridge.main import DroneClient  # noqa: E402
+
+# drone_bridge 客户端（可选）：仅"连无人机（云台/拍照/GPS）"时需要。
+# 拿不到也能纯跑检测（离线/无硬件场景），只是会跳过云台与拍照。
+try:
+    from drone_bridge.main import DroneClient  # noqa: E402
+    _HAS_DEC = True
+except Exception as _e:  # noqa: BLE001
+    DroneClient = None  # type: ignore[assignment]
+    _HAS_DEC = False
+    print(f"[提示] 未找到 drone_bridge（{_DRONE_BRIDGE}）：{_e}")
 
 # 本目录下的复用模块（reporter / alarm / gimbal_aim）
 from reporter import InspectionReporter  # noqa: E402
@@ -110,12 +119,18 @@ def open_stream(src: str):
 
 
 def main() -> int:
-    client = DroneClient(RC_PRO_IP, RC_PRO_PORT)
-    ok = client.check_connection()
-    print(f"[drone] RC Pro: {client.base}  {'[OK] 已连接' if ok else '[警告] 不可达（仍可跑检测，仅云台/拍照会跳过）'}")
-    if not ok:
-        print("[drone] 检查：无人机+RC Pro 开机、Drone_test APK 在自动化飞行页、PC 与 RC Pro 同一 WiFi、"
-              f"或 curl http://{RC_PRO_IP}:{RC_PRO_PORT}/api/status 是否能返回 JSON。")
+    if DroneClient is not None:
+        client = DroneClient(RC_PRO_IP, RC_PRO_PORT)
+        ok = client.check_connection()
+        print(f"[drone] RC Pro: {client.base}  {'[OK] 已连接' if ok else '[警告] 不可达（仍可跑检测，仅云台/拍照会跳过）'}")
+        if not ok:
+            print("[drone] 检查：无人机+RC Pro 开机、Drone_test APK 在自动化飞行页、PC 与 RC Pro 同一 WiFi、"
+                  f"或 curl http://{RC_PRO_IP}:{RC_PRO_PORT}/api/status 是否能返回 JSON。")
+    else:
+        client = None
+        ok = False
+        print("[drone] drone_bridge 未安装 → 以纯检测模式运行（云台/拍照/GPS 将跳过）。")
+        print(f"       真机测试需先准备 drone_bridge（见 docs/COLLEAGUE_SETUP.md），并 export DRONE_BRIDGE=<其目录>。")
 
     model = YOLO(WEIGHTS)
     fire_cls = int(model.names.get("fire", 1))  # D-Fire: 0=smoke, 1=fire

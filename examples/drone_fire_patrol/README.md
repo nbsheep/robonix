@@ -9,7 +9,7 @@ RoboNIX 的**无人机业务示例**：把离板的火/烟 YOLO 检测接到 DJI
 ## 依赖
 
 - **无人机 + RC Pro**：Drone_test APK（`/api/*` HTTP 接口），PC 与 RC Pro 同一局域网。
-- **drone_bridge 客户端**：本仓库 `master` 分支（无人机线）里的 `drone_bridge` 包（`DroneClient`）。用 `DRONE_BRIDGE` 环境变量指向它所在目录，默认 `C:/Users/nice/Desktop/drone_bridge`。
+- **drone_bridge 客户端**：本仓库 `master` 分支（无人机线）里的 `drone_bridge` 包（`DroneClient`）。用 `DRONE_BRIDGE` 环境变量指向它所在目录，默认 `C:/Users/nice/Desktop/drone_bridge`。**仅真机（云台/拍照/GPS）需要**——纯离线检测可以不装（此时自动以"纯检测模式"运行，跳过云台/拍照）。
 - **Python 环境**（推荐独立 conda 环境）：
 
 ```bash
