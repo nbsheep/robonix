@@ -1,0 +1,35 @@
+# ===== Gradle / 构建产物 =====
+.gradle/
+build/
+**/build/
+*.apk
+*.aab
+*.ap_
+
+# ===== IDE =====
+.idea/
+*.iml
+.kotlin/
+
+# ===== 本地/机密配置（切勿提交） =====
+local.properties
+gradle.properties
+msdkkeystore.jks
+*.jks
+*.keystore
+keystore.properties
+
+# ===== 大文件 / 日志 / 临时 =====
+*.zip
+*.zip.001
+*.zip.002
+*.7z
+hs_err_pid*.log
+replay_pid*.log
+__pycache__/
+*.pyc
+*.class
+
+# ===== 系统 =====
+.DS_Store
+Thumbs.db

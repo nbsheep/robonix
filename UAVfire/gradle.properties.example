@@ -1,0 +1,42 @@
+#gralde build config
+org.gradle.daemon=true
+org.gradle.parallel=true
+org.gradle.configureondemand=true
+org.gradle.jvmargs=-Xmx3072M -XX:MaxMetaspaceSize=512m -XX:ReservedCodeCacheSize=128m
+org.gradle.workers.max=2
+
+#use androidX
+android.useAndroidX=true
+android.enableJetifier=true
+android.nonTransitiveRClass=false
+
+#去掉资源重复检查
+android.disableResourceValidation=true
+
+#build config
+ANDROID_MIN_SDK_VERSION=24
+ANDROID_TARGET_SDK_VERSION=35
+ANDROID_COMPILE_SDK_VERSION=35
+KOTLIN_VERSION = 2.1.0
+NDK_VERSION = 21.4.7075529
+
+#msdk api key（在 DJI 开发者中心申请，勿提交真实值）
+AIRCRAFT_API_KEY = YOUR_DJI_APP_KEY
+
+#map key
+GMAP_API_KEY =  ENTER YOUR Google Map API KEY
+MAPLIBRE_TOKEN = ENTER YOUR  MapLibre TOKEN
+
+#签名信息（本地 keystore，勿提交密码）
+STORE_FILE = ../android-sdk-v5-as/msdkkeystore.jks
+STORE_PASSWORD = YOUR_STORE_PASSWORD
+KEY_ALIAS = msdkkeystore
+KEY_PASSWORD = YOUR_KEY_PASSWORD
+
+#maven
+KOTLIN_MAVEN = https://dl.bintray.com/kotlin/kotlin-eap
+REPO_MAVEN2 = https://repo1.maven.org/maven2
+JITPACK_MAVEN_URL = https://jitpack.io
+
+# 本地 JDK 路径（按各自机器修改，取消注释后填自己的路径）
+# org.gradle.java.home=D:/Java/jdk-17
