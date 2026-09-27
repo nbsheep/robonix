@@ -3,7 +3,7 @@ id      = "robonix/primitive/drone/gimbal_reset"
 version = "1"
 kind    = "primitive"
 idl     = "drone/srv/GimbalReset.srv"
-description = "云台回中（平视）：调用 /api/gimbal {action:\"level\"}，恢复机头正前方水平。仅巡航中可用（cruiseActive==true）。"
+description = "云台回中（平视），恢复机头正前方水平。"
 
 [mode]
 type = "rpc"
