@@ -1,3 +1,3 @@
-# 云台回中（平视）：对应 /api/gimbal {action:"level"}，仅巡航中可用。
+# 云台回中（平视），恢复机头正前方水平。
 ---
 std_msgs/String status
